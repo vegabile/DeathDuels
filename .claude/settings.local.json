@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "WebFetch(domain:madstudioroblox.github.io)",
-      "WebFetch(domain:github.com)"
-    ]
-  }
-}

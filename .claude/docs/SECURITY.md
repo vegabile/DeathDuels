@@ -1,0 +1,1 @@
+ALWAYS validate client input, and never call client functions from the server. ALways type check, sanity check, etc, all client input.
