@@ -7,6 +7,7 @@ local debugPrint = DebugUtility.Print
 --// Only one of each Input Flag.
 local CURRENT_VALID_INPUT_FLAGS = {
 	GunInput = true,
+	KnifeInput = true,
 }
 
 local currentInputTable: {[string]: RBXScriptSignal} = {}
