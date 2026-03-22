@@ -1,13 +1,13 @@
 local Players = game:GetService("Players")
-local KnifeService = require(script.Parent)
+local GunService = require(script.Parent)
 
 local function setupPlayer(player)
-	KnifeService.OnPlayerAdded(player)
+	GunService.OnPlayerAdded(player)
 
 	player.CharacterAdded:Connect(function(character)
 		local humanoid = character:WaitForChild("Humanoid")
 		humanoid.Died:Connect(function()
-			KnifeService.OnPlayerDied(player)
+			GunService.OnPlayerDied(player)
 		end)
 	end)
 end
@@ -19,5 +19,5 @@ for _, player in Players:GetPlayers() do
 end
 
 Players.PlayerRemoving:Connect(function(player)
-	KnifeService.OnPlayerRemoving(player)
+	GunService.OnPlayerRemoving(player)
 end)

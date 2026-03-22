@@ -1,12 +1,14 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local DebugUtility = require(ReplicatedStorage.DebugUtility)
+local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 
 local KnifeStateMachine = require(ReplicatedStorage.Knife.KnifeStateMachine)
 
 local Configs = require(script.Configs)
 local ActionRegistry = require(script.ActionRegistry)
 local ClientEventBus = require(script.Parent.ClientEventBus)
+local InputPosition = require(script.Parent.InputPosition)
 
 local DEBUG = Configs.DEBUG_MODE
 local debugPrint = DebugUtility.Print
@@ -17,7 +19,7 @@ local localPlayer = Players.LocalPlayer
 local stateMachine = KnifeStateMachine.new()
 local sequenceId = 0
 local knifeEquipped = false
-local remote: RemoteEvent? = nil
+local remoteName: string = ""
 local remoteConnection: RBXScriptConnection? = nil
 local safetyTimeoutThread: thread? = nil
 
@@ -32,17 +34,12 @@ function KnifeController.onKnifeEquipped()
 	knifeEquipped = true
 	debugPrint(DEBUG, `[KnifeController] Knife equipped`)
 
-	local remoteName = `KnifeAction_{localPlayer.UserId}`
-	remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild(remoteName, 10)
-	if not remote then
-		warn(`[KnifeController] Could not find remote: {remoteName}`)
-		return
-	end
+	remoteName = `KnifeAction_{localPlayer.UserId}`
 
 	if remoteConnection then
 		remoteConnection:Disconnect()
 	end
-	remoteConnection = remote.OnClientEvent:Connect(function(payload)
+	remoteConnection = NetworkRouter:Listen(remoteName, function(payload)
 		KnifeController._handleServerResponse(payload)
 	end)
 end
@@ -73,21 +70,22 @@ function KnifeController.onInputBegan(input: InputObject, gameProcessed: boolean
 
 	local directionVector = nil
 	if actionName == "Throw" then
-		local camera = workspace.CurrentCamera
-		if camera then
-			directionVector = camera.CFrame.LookVector
+		local character = localPlayer.Character
+		local knifeTool = character and character:FindFirstChildWhichIsA("Tool")
+		local handle = knifeTool and knifeTool:FindFirstChild("Handle")
+		local targetPos = InputPosition.getInputPosition()
+		if handle and targetPos then
+			directionVector = (targetPos - handle.Position).Unit
 		end
 	end
 
 	action.clientExecute(stateMachine, directionVector)
 
-	if remote then
-		remote:FireServer({
-			desiredAction = actionName,
-			directionVector = directionVector,
-			sequenceId = sequenceId,
-		})
-	end
+	NetworkRouter:Call(remoteName, {
+		desiredAction = actionName,
+		directionVector = directionVector,
+		sequenceId = sequenceId,
+	})
 
 	local thisSequence = sequenceId
 	if safetyTimeoutThread then

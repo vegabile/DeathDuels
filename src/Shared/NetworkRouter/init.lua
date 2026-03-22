@@ -75,7 +75,12 @@ if isServer then
 	end
 else
 	function NetworkRouter:Call(name, ...)
-		return self:Get(name):InvokeServer(...)
+		local remote = self:Get(name)
+		if remote:IsA("RemoteFunction") then
+			return remote:InvokeServer(...)
+		elseif remote:IsA("RemoteEvent") then
+			remote:FireServer(...)
+		end
 	end
 
 	function NetworkRouter:Listen(name, callback)

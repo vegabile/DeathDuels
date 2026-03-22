@@ -2,7 +2,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local ProjectileFactory = require(ReplicatedStorage.Knife.ProjectileFactory)
 
-local DEBUG = true
+local ServerConfigs = require(script.Parent.Configs)
+local DEBUG = ServerConfigs.DEBUG_MODE
 local debugPrint = DebugUtility.Print
 
 local KnifeProjectileHandler = {}

@@ -2,8 +2,12 @@ local Players = game:GetService("Players")
 local Debris = game:GetService("Debris")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
 local Types = require(script.Parent.Types)
+
+local DEBUG = SharedConfigs.DEBUG_MODE
+local debugPrint = DebugUtility.Print
 
 local ProjectileFactory = {}
 
@@ -79,42 +83,32 @@ function ProjectileFactory.spawnProjectile(
 
 	heartbeatConnection = RunService.Heartbeat:Connect(function()
 		if stuck or not clonedHandle.Parent then
-			print(`[Heartbeat] Exiting — stuck={stuck}, parent={clonedHandle.Parent}`)
+			debugPrint(DEBUG, `[ProjectileFactory] Exiting heartbeat — stuck={stuck}, parent={clonedHandle.Parent}`)
 			heartbeatConnection:Disconnect()
 			return
 		end
 
 		local currentPosition = clonedHandle.Position
 		local delta = currentPosition - lastPosition
-		print(`[Heartbeat] pos={currentPosition}, delta={delta.Magnitude}`)
 
 		if delta.Magnitude > 0 then
-			print(`[Heartbeat] Raycasting from {lastPosition} dir {delta}`)
 			local result = workspace:Raycast(lastPosition, delta, raycastParams)
 
 			if result then
-				print(`[Heartbeat] Raycast hit: {result.Instance.Name} at {result.Position}`)
 				local hitCharacter = result.Instance:FindFirstAncestorOfClass("Model")
 
 				if hitCharacter then
-					print(`[Heartbeat] Hit model: {hitCharacter.Name}`)
 					local hitPlayer = Players:GetPlayerFromCharacter(hitCharacter)
 					if hitPlayer and hitPlayer ~= owner and not alreadyHitFromThrow[hitPlayer] then
-						print(`[Heartbeat] Valid player hit: {hitPlayer.Name}`)
 						alreadyHitFromThrow[hitPlayer] = true
 						stickAndCleanup(result.Position)
 						if onHit then
 							onHit(hitPlayer)
 						end
-					else
-						print(`[Heartbeat] Rejected hit — hitPlayer={hitPlayer and hitPlayer.Name or "nil"}, self={hitPlayer == owner}, alreadyHit={alreadyHitFromThrow[hitPlayer] or false}`)
 					end
 				else
-					print(`[Heartbeat] Hit geometry: {result.Instance.Name}`)
 					stickAndCleanup(result.Position)
 				end
-			else
-				print(`[Heartbeat] Raycast missed — no collision`)
 			end
 		end
 

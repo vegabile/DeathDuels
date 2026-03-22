@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
+local KnifeUtility = require(ReplicatedStorage.Knife.KnifeUtility)
 
 local ServerConfigs = require(script.Parent.Parent.Configs)
 local KnifeProjectileHandler = require(script.Parent.Parent.KnifeProjectileHandler)
@@ -28,13 +29,7 @@ function ThrowAction.serverExecute(player: Player, playerState: any, directionVe
 		return
 	end
 
-	local knifeTool = nil
-	for _, child in character:GetChildren() do
-		if child:IsA("Tool") and child:GetAttribute("IsKnife") then
-			knifeTool = child
-			break
-		end
-	end
+	local knifeTool = KnifeUtility.findKnifeTool(character)
 	if not knifeTool then
 		warn(`[ThrowAction] No knife tool found for throw: {player.Name}`)
 		return

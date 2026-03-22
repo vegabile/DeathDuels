@@ -1,5 +1,7 @@
 return {
+	DEBUG_MODE = true,
 	ValidActions = { "Stab", "Throw" },
+	MaxDirectionMagnitude = 1.1,
 	StabCooldown = 0.5,
 	ThrowCooldown = 0.5,
 	StabAnimationId = "",

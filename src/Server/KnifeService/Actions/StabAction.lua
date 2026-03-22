@@ -3,6 +3,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
+local KnifeUtility = require(ReplicatedStorage.Knife.KnifeUtility)
 
 local ServerConfigs = require(script.Parent.Parent.Configs)
 local DEBUG = ServerConfigs.DEBUG_MODE
@@ -17,10 +18,13 @@ StabAction.animationId = SharedConfigs.StabAnimationId
 
 function StabAction.serverExecute(player: Player, playerState: any, _directionVector: Vector3?)
 	playerState.alreadyHit = {}
-	local startTime = tick()
+	local startTime = os.clock()
+
+	local overlapParams = OverlapParams.new()
+	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
 
 	playerState.currentTickConnection = RunService.Heartbeat:Connect(function()
-		if tick() - startTime >= StabAction.duration then
+		if os.clock() - startTime >= StabAction.duration then
 			if playerState.currentTickConnection then
 				playerState.currentTickConnection:Disconnect()
 				playerState.currentTickConnection = nil
@@ -32,21 +36,12 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 		local character = player.Character
 		if not character then return end
 
-		--// Find the hitbox inside the equipped knife tool
-		local knifeTool = nil
-		for _, child in character:GetChildren() do
-			if child:IsA("Tool") and child:GetAttribute("IsKnife") then
-				knifeTool = child
-				break
-			end
-		end
+		local knifeTool = KnifeUtility.findKnifeTool(character)
 		if not knifeTool then return end
 
 		local hitbox = knifeTool:FindFirstChild("Hitbox")
 		if not hitbox then return end
 
-		local overlapParams = OverlapParams.new()
-		overlapParams.FilterType = Enum.RaycastFilterType.Exclude
 		overlapParams.FilterDescendantsInstances = { character }
 
 		local parts = workspace:GetPartsInPart(hitbox, overlapParams)

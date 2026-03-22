@@ -1,10 +1,10 @@
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 
 local KnifeStateMachine = require(ReplicatedStorage.Knife.KnifeStateMachine)
 local PayloadValidator = require(ReplicatedStorage.Knife.PayloadValidator)
+local KnifeUtility = require(ReplicatedStorage.Knife.KnifeUtility)
 
 local ServerTypes = require(script.Types)
 local ServerConfigs = require(script.Configs)
@@ -80,14 +80,7 @@ function KnifeService.OnPlayerDied(player: Player)
 end
 
 function KnifeService._hasKnifeEquipped(player: Player): boolean
-	local character = player.Character
-	if not character then return false end
-	for _, child in character:GetChildren() do
-		if child:IsA("Tool") and child:GetAttribute("IsKnife") then
-			return true
-		end
-	end
-	return false
+	return KnifeUtility.findKnifeTool(player.Character) ~= nil
 end
 
 function KnifeService._handleActionRequest(player: Player, payload: any)
@@ -113,7 +106,7 @@ function KnifeService._handleActionRequest(player: Player, payload: any)
 	local action = ActionRegistry.getAction(payload.desiredAction)
 	if not action then return end
 
-	local now = tick()
+	local now = os.clock()
 	local timeSinceLast = now - state.lastActionTimestamp
 	if timeSinceLast < (action.cooldown - ServerConfigs.RATE_LIMIT_BUFFER) then
 		warn(`[KnifeService] Rate limit: {player.Name} ({timeSinceLast}s since last)`)
