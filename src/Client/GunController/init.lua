@@ -4,11 +4,13 @@ local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 
 local GunStateMachine = require(ReplicatedStorage.Gun.GunStateMachine)
+local SharedConfigs = require(ReplicatedStorage.Gun.Configs)
 
 local Configs = require(script.Configs)
 local ActionRegistry = require(script.ActionRegistry)
 local ClientEventBus = require(script.Parent.ClientEventBus)
 local InputPosition = require(script.Parent.InputPosition)
+local SFXController = require(script.Parent.SFXController)
 
 local DEBUG = Configs.DEBUG_MODE
 local debugPrint = DebugUtility.Print
@@ -119,6 +121,7 @@ function GunController._handleServerResponse(payload: any)
 
 	elseif payload.payloadType == "ProjectileHitConfirm" then
 		debugPrint(DEBUG, `[GunController] Hit confirmed for {payload.actionName}`)
+		SFXController.playAt(SharedConfigs.HitSoundId, nil)
 		ClientEventBus:Fire("GunHitConfirmed", payload.actionName)
 	end
 end

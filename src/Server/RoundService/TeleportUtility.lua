@@ -1,5 +1,6 @@
 local TeleportService = game:GetService("TeleportService")
-local Configs = require(script.Parent.Parent.Parent.Shared.Round.Configs)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Configs = require(ReplicatedStorage.Round.Configs)
 
 local TeleportUtility = {}
 

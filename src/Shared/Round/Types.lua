@@ -26,6 +26,19 @@ export type RoundResult = {
 	stats: {},
 }
 
+export type TeleportPlayerEntry = {
+	Name: string,
+	UserId: number,
+}
+
+export type TeleportMetadata = {
+	teamOnePlayers: { TeleportPlayerEntry },
+	teamTwoPlayers: { TeleportPlayerEntry },
+	queueType: number,
+	mapName: string,
+	timestamp: number,
+}
+
 export type TeleportPayload = {
 	roundResults: { RoundResult },
 	winningTeam: number?,

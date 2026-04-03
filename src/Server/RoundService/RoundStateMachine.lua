@@ -1,4 +1,5 @@
-local Configs = require(script.Parent.Parent.Parent.Shared.Round.Configs)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Configs = require(ReplicatedStorage.Round.Configs)
 
 local RoundStateMachine = {}
 RoundStateMachine.__index = RoundStateMachine
@@ -36,8 +37,16 @@ function RoundStateMachine:Transition(to: string): (boolean, string?)
 		return false, reason
 	end
 
+	local from = self.currentState
 	self.currentState = to
+	if self._onTransition then
+		self._onTransition(from, to)
+	end
 	return true, nil
+end
+
+function RoundStateMachine:SetTransitionCallback(fn: (string, string) -> ())
+	self._onTransition = fn
 end
 
 function RoundStateMachine:GetValidTransitions(): { string }

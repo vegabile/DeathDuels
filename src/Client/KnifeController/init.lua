@@ -4,11 +4,13 @@ local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 
 local KnifeStateMachine = require(ReplicatedStorage.Knife.KnifeStateMachine)
+local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
 
 local Configs = require(script.Configs)
 local ActionRegistry = require(script.ActionRegistry)
 local ClientEventBus = require(script.Parent.ClientEventBus)
 local InputPosition = require(script.Parent.InputPosition)
+local SFXController = require(script.Parent.SFXController)
 
 local DEBUG = Configs.DEBUG_MODE
 local debugPrint = DebugUtility.Print
@@ -121,6 +123,8 @@ function KnifeController._handleServerResponse(payload: any)
 
 	elseif payload.payloadType == "ProjectileHitConfirm" then
 		debugPrint(DEBUG, `[KnifeController] Hit confirmed for {payload.actionName}`)
+		SFXController.playAt(SharedConfigs.HitSoundId, nil)
+		SFXController.playAt(SharedConfigs.StickSoundId, nil)
 		ClientEventBus:Fire("KnifeHitConfirmed", payload.actionName)
 	end
 end

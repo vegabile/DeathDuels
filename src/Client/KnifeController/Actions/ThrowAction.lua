@@ -3,6 +3,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
 local ProjectileFactory = require(ReplicatedStorage.Knife.ProjectileFactory)
 local KnifeUtility = require(ReplicatedStorage.Knife.KnifeUtility)
+local AnimationController = require(script.Parent.Parent.Parent.AnimationController)
+local SFXController = require(script.Parent.Parent.Parent.SFXController)
 
 local ThrowAction = {}
 
@@ -25,16 +27,27 @@ end
 function ThrowAction.clientExecute(_state, directionVector: Vector3?)
 	if not directionVector then return end
 
-	local knifeTool = KnifeUtility.findKnifeTool(Players.LocalPlayer.Character)
+	local character = Players.LocalPlayer.Character
+	if not character then
+		warn("[ThrowAction] clientExecute: no character")
+		return
+	end
+
+	AnimationController.play(character, SharedConfigs.ThrowAnimationId)
+	SFXController.playUI(SharedConfigs.ThrowSoundId)
+
+	local knifeTool = KnifeUtility.findKnifeTool(character)
 	if not knifeTool then
 		warn("[ThrowAction] No knife tool found for client cosmetic projectile")
 		return
 	end
 
 	local handle = knifeTool:FindFirstChild("Handle")
-	if not handle then return end
+	if not handle then
+		warn("[ThrowAction] Knife tool has no Handle")
+		return
+	end
 
-	local character = Players.LocalPlayer.Character
 	local clientFolder = getOrCreateClientFolder()
 
 	ProjectileFactory.spawnProjectile({
