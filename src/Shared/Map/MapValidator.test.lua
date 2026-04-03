@@ -53,4 +53,50 @@ end
 
 -- ─── Summary ──────────────────────────────────────────────────────────────────
 
+-- Spawn count enforcement
+
+do
+	local Configs = require(ReplicatedStorage.Round.Configs)
+	local mapsFolder = ReplicatedStorage:FindFirstChild("Maps")
+	if mapsFolder and #mapsFolder:GetChildren() > 0 then
+		local realMap = mapsFolder:GetChildren()[1]
+		local redCount = 0
+		local blueCount = 0
+		for _, desc in realMap:GetDescendants() do
+			if desc.Name == Configs.SPAWN_PARTS.Red then redCount += 1 end
+			if desc.Name == Configs.SPAWN_PARTS.Blue then blueCount += 1 end
+		end
+		check(
+			`map "{realMap.Name}" has >= {Configs.MAX_PLAYERS_PER_TEAM} red spawns`,
+			redCount >= Configs.MAX_PLAYERS_PER_TEAM,
+			`found {redCount}`
+		)
+		check(
+			`map "{realMap.Name}" has >= {Configs.MAX_PLAYERS_PER_TEAM} blue spawns`,
+			blueCount >= Configs.MAX_PLAYERS_PER_TEAM,
+			`found {blueCount}`
+		)
+	else
+		print("SKIP: no maps in ReplicatedStorage.Maps to test spawn counts")
+	end
+end
+
+do
+	local mapsFolder = ReplicatedStorage:FindFirstChild("Maps")
+	if mapsFolder then
+		local tempMap = Instance.new("Folder")
+		tempMap.Name = "_TestEmptyMap"
+		tempMap.Parent = mapsFolder
+
+		local ok = pcall(function()
+			MapValidator.validate("_TestEmptyMap")
+		end)
+
+		check("error() fires for map with zero spawn parts", not ok)
+		tempMap:Destroy()
+	else
+		print("SKIP: no Maps folder to test spawn crash")
+	end
+end
+
 print(`\n{passed} passed, {failed} failed`)

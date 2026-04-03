@@ -17,4 +17,6 @@ return {
 	ThrowSpeed = 100,
 	StuckDespawnTime = 5,
 	ProjectileMaxLifetime = 7,
+
+	MAX_STAB_DISTANCE = 15,
 }

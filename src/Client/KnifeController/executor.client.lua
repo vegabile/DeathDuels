@@ -1,38 +1,34 @@
-local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
-local ClientEventBus = require(script.Parent.Parent.ClientEventBus)
 local KnifeController = require(script.Parent)
+local InputRouter = require(script.Parent.Parent.InputRouter)
 
 local localPlayer = Players.LocalPlayer
-
-local inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	KnifeController.onInputBegan(input, gameProcessed)
-end)
-
-ClientEventBus:Fire("RequestInputConnection", "KnifeInput", inputConnection)
 
 local function setupCharacter(character)
 	character.ChildAdded:Connect(function(child)
 		if child:IsA("Tool") and child:GetAttribute("IsKnife") then
 			KnifeController.onKnifeEquipped()
+			InputRouter.bindWeapon("Knife", KnifeController.performAction)
 		end
 	end)
 
 	character.ChildRemoved:Connect(function(child)
 		if child:IsA("Tool") and child:GetAttribute("IsKnife") then
 			KnifeController.onKnifeUnequipped()
+			InputRouter.unbindWeapon("Knife")
 		end
 	end)
 
 	local humanoid = character:WaitForChild("Humanoid")
 	humanoid.Died:Connect(function()
 		KnifeController.onPlayerDied()
+		InputRouter.unbindWeapon("Knife")
 	end)
 
-	--// Check if knife is already equipped when character loads
 	for _, child in character:GetChildren() do
 		if child:IsA("Tool") and child:GetAttribute("IsKnife") then
 			KnifeController.onKnifeEquipped()
+			InputRouter.bindWeapon("Knife", KnifeController.performAction)
 			break
 		end
 	end

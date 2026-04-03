@@ -1,6 +1,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 
 local Configs = require(ReplicatedStorage.Round.Configs)
+local ServerEventBus = require(ServerScriptService.ServerEventBus)
 
 local PlayerState = require(script.Parent.PlayerState)
 local TeamState = require(script.Parent.TeamState)
@@ -9,6 +11,54 @@ local TeleportMetadataService = require(script.Parent.TeleportMetadataService)
 local TeleportUtility = require(script.Parent.TeleportUtility)
 
 local RoundOrchestrator = {}
+
+local function collectSpawnParts(mapModel)
+	local red = {}
+	local blue = {}
+	for _, desc in mapModel:GetDescendants() do
+		if desc.Name == Configs.SPAWN_PARTS.Red then
+			table.insert(red, desc)
+		elseif desc.Name == Configs.SPAWN_PARTS.Blue then
+			table.insert(blue, desc)
+		end
+	end
+	return red, blue
+end
+
+local function getSpawnAssignment(system)
+	local red, blue = collectSpawnParts(system._mapModel)
+	--// Alternate each round: odd → team1=red, even → team1=blue
+	if system._roundNumber % 2 == 1 then
+		return { [1] = red, [2] = blue }
+	else
+		return { [1] = blue, [2] = red }
+	end
+end
+
+local function loadAndPositionPlayers(system)
+	local spawnGroups = getSpawnAssignment(system)
+
+	for teamNum, spawns in spawnGroups do
+		local players = system._teamPlayers[teamNum]
+		for i, player in players do
+			if not system._playerStates[player] then continue end
+
+			local spawnPart = spawns[((i - 1) % #spawns) + 1]
+
+			if not player.Character or not player.Character:FindFirstChild("Humanoid") or player.Character.Humanoid.Health <= 0 then
+				player:LoadCharacter()
+			end
+
+			local character = player.Character or player.CharacterAdded:Wait()
+			local rootPart = character:WaitForChild("HumanoidRootPart", Configs.CHARACTER_LOAD_TIMEOUT)
+			if rootPart then
+				rootPart.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
+			else
+				warn(`[RoundOrchestrator] Character load timed out for {player.Name}`)
+			end
+		end
+	end
+end
 
 local function enterWaitingForPlayers(system)
 	system._waitTask = task.delay(Configs.WAITING_PERIOD, function()
@@ -23,6 +73,18 @@ local function enterAssigningTeams(system)
 		task.cancel(system._waitTask)
 		system._waitTask = nil
 	end
+
+	--// Load map
+	local mapName = TeleportMetadataService.GetMapName()
+	local mapsFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Maps")
+	local mapTemplate = mapsFolder and mapsFolder:FindFirstChild(mapName)
+	if not mapTemplate then
+		warn(`[RoundOrchestrator] Map "{mapName}" not found, aborting`)
+		system:_transition(Configs.GAME_STATES.Aborted)
+		return
+	end
+	system._mapModel = mapTemplate:Clone()
+	system._mapModel.Parent = workspace
 
 	system._teamPlayers = { [1] = {}, [2] = {} }
 
@@ -44,9 +106,45 @@ end
 
 local function enterRoundActive(system)
 	system._roundNumber += 1
+
+	task.spawn(function()
+		loadAndPositionPlayers(system)
+		system:_broadcastUpdate()
+
+		system._roundTimerTask = task.delay(Configs.ROUND_DURATION, function()
+			system._roundTimerTask = nil
+			if system._stateMachine:GetState() ~= Configs.GAME_STATES.RoundActive then return end
+
+			--// Time expired — determine winner by alive count
+			local t1 = system._teamStates[1]:Recalculate()
+			local t2 = system._teamStates[2]:Recalculate()
+
+			local winningTeam = nil
+			if t1.alivePlayers > t2.alivePlayers then
+				winningTeam = 1
+			elseif t2.alivePlayers > t1.alivePlayers then
+				winningTeam = 2
+			end
+
+			table.insert(system._roundResults, { winningTeam = winningTeam, stats = {} })
+			system:_fireEvent("RoundOver", winningTeam, system._roundNumber)
+
+			local gameOver = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
+			if gameOver then
+				system:_transition(Configs.GAME_STATES.GameOver)
+			else
+				system:_transition(Configs.GAME_STATES.RoundIntermission)
+			end
+		end)
+	end)
 end
 
 local function enterRoundIntermission(system)
+	if system._roundTimerTask then
+		task.cancel(system._roundTimerTask)
+		system._roundTimerTask = nil
+	end
+
 	for _, playerState in system._playerStates do
 		playerState:Lock()
 	end
@@ -108,6 +206,8 @@ local handlers = {
 }
 
 function RoundOrchestrator.enter(state: string, system)
+	ServerEventBus:Fire("RoundStateChanged", state)
+
 	local handler = handlers[state]
 	if not handler then
 		warn(`[RoundOrchestrator] No handler for state: {state}`)

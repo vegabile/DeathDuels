@@ -1,4 +1,5 @@
 local Players = game:GetService("Players")
+Players.CharacterAutoLoads = false
 
 local RoundService = require(script.Parent)
 local TeleportDataValidator = require(script.Parent.TeleportDataValidator)

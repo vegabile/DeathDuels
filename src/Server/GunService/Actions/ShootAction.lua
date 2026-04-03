@@ -64,6 +64,12 @@ function ShootAction.serverExecute(player: Player, _playerState: any, directionV
 	local origin = shootPoint.WorldPosition
 	local direction = directionVector.Unit
 
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	if rootPart and (origin - rootPart.Position).Magnitude > SharedConfigs.MAX_SHOOT_ORIGIN_DISTANCE then
+		warn(`[ShootAction] Shoot origin too far from character for {player.Name}`)
+		return
+	end
+
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 	raycastParams.FilterDescendantsInstances = { character }
@@ -80,6 +86,7 @@ function ShootAction.serverExecute(player: Player, _playerState: any, directionV
 			if hitPlayer and hitPlayer ~= player then
 				local humanoid = hitCharacter:FindFirstChildOfClass("Humanoid")
 				if humanoid then
+					humanoid:SetAttribute("LastDamageSource", player.UserId)
 					humanoid:TakeDamage(SharedConfigs.ShootDamage)
 				end
 

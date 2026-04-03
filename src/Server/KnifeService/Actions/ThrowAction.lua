@@ -42,6 +42,7 @@ function ThrowAction.serverExecute(player: Player, playerState: any, directionVe
 	KnifeProjectileHandler.spawnProjectile(player, directionVector, knifeTool, blacklist, function(hitPlayer)
 		local humanoid = hitPlayer.Character and hitPlayer.Character:FindFirstChildOfClass("Humanoid")
 		if humanoid then
+			humanoid:SetAttribute("LastDamageSource", player.UserId)
 			humanoid:TakeDamage(SharedConfigs.ThrowDamage)
 		end
 

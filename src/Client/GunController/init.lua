@@ -25,13 +25,6 @@ local remoteName: string = ""
 local remoteConnection: RBXScriptConnection? = nil
 local safetyTimeoutThread: thread? = nil
 
-local inputTypeMap: { [Enum.UserInputType]: string } = {}
-for _, bind in Configs.Keybinds do
-	if bind.userInputType then
-		inputTypeMap[bind.userInputType] = bind.mappedAction
-	end
-end
-
 function GunController.onGunEquipped()
 	gunEquipped = true
 	debugPrint(DEBUG, `[GunController] Gun equipped`)
@@ -51,12 +44,8 @@ function GunController.onGunUnequipped()
 	debugPrint(DEBUG, `[GunController] Gun unequipped`)
 end
 
-function GunController.onInputBegan(input: InputObject, gameProcessed: boolean)
-	if gameProcessed then return end
+function GunController.performAction(actionName: string)
 	if not gunEquipped then return end
-
-	local actionName = inputTypeMap[input.UserInputType]
-	if not actionName then return end
 
 	local action = ActionRegistry.getAction(actionName)
 	if not action then return end

@@ -43,6 +43,10 @@ function PlayerState:GetStat(key: string): any
 end
 
 function PlayerState:SetAlive(isAlive: boolean)
+	if self._locked then
+		warn("[PlayerState] State is locked, cannot set alive status")
+		return
+	end
 	self.status = if isAlive then Configs.PLAYER_STATUSES.Alive else Configs.PLAYER_STATUSES.Dead
 end
 

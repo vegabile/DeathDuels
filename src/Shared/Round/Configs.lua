@@ -16,6 +16,7 @@ return {
 	},
 
 	WAITING_PERIOD = 10,
+	ROUND_DURATION = 60,
 	ROUND_INTERMISSION_DURATION = 5,
 	GAME_OVER_DURATION = 8,
 	RESPAWN_DELAY = 3,
@@ -26,8 +27,20 @@ return {
 	EXPONENTIAL_BACKOFF_BASE = 1,
 	EXPONENTIAL_BACKOFF_EXPONENT = 2,
 
-	ROUNDS_TO_WIN = 2,
-	MAX_ROUNDS = 3,
+	ROUNDS_TO_WIN = 5,
+	MAX_ROUNDS = 9,
+
+	SPAWN_PARTS = {
+		Red = "RedPart",
+		Blue = "BluePart",
+	},
+
+	GAME_MODES = {
+		{ name = "1v1", playersPerTeam = 1 },
+		{ name = "2v2", playersPerTeam = 2 },
+	},
+
+	MAX_PLAYERS_PER_TEAM = 2,
 
 	LEGAL_TRANSITIONS = {
 		WaitingForPlayers = { "AssigningTeams", "Aborted" },

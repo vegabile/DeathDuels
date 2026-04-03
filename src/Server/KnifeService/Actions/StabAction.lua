@@ -45,6 +45,7 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 		overlapParams.FilterDescendantsInstances = { character }
 
 		local parts = workspace:GetPartsInPart(hitbox, overlapParams)
+		local attackerRoot = character:FindFirstChild("HumanoidRootPart")
 		for _, part in parts do
 			local hitCharacter = part:FindFirstAncestorOfClass("Model")
 			if not hitCharacter then continue end
@@ -54,9 +55,17 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 			if hitPlayer == player then continue end
 			if playerState.alreadyHit[hitPlayer] then continue end
 
+			if attackerRoot then
+				local victimRoot = hitCharacter:FindFirstChild("HumanoidRootPart")
+				if victimRoot and (attackerRoot.Position - victimRoot.Position).Magnitude > SharedConfigs.MAX_STAB_DISTANCE then
+					continue
+				end
+			end
+
 			playerState.alreadyHit[hitPlayer] = true
 			local humanoid = hitCharacter:FindFirstChildOfClass("Humanoid")
 			if humanoid then
+				humanoid:SetAttribute("LastDamageSource", player.UserId)
 				humanoid:TakeDamage(SharedConfigs.StabDamage)
 			end
 

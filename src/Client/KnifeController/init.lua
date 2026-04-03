@@ -25,13 +25,6 @@ local remoteName: string = ""
 local remoteConnection: RBXScriptConnection? = nil
 local safetyTimeoutThread: thread? = nil
 
-local keybindMap: { [Enum.KeyCode]: string } = {}
-for _, bind in Configs.Keybinds do
-	if bind.keycode then
-		keybindMap[bind.keycode] = bind.mappedAction
-	end
-end
-
 function KnifeController.onKnifeEquipped()
 	knifeEquipped = true
 	debugPrint(DEBUG, `[KnifeController] Knife equipped`)
@@ -49,15 +42,10 @@ end
 function KnifeController.onKnifeUnequipped()
 	knifeEquipped = false
 	debugPrint(DEBUG, `[KnifeController] Knife unequipped`)
-	--// State persists through unequip/reequip per spec
 end
 
-function KnifeController.onInputBegan(input: InputObject, gameProcessed: boolean)
-	if gameProcessed then return end
+function KnifeController.performAction(actionName: string)
 	if not knifeEquipped then return end
-
-	local actionName = keybindMap[input.KeyCode]
-	if not actionName then return end
 
 	local action = ActionRegistry.getAction(actionName)
 	if not action then return end

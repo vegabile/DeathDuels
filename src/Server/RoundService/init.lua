@@ -1,3 +1,4 @@
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Configs = require(ReplicatedStorage.Round.Configs)
@@ -32,6 +33,8 @@ function RoundSystem.new(metadata: TeleportMetadata)
 	self._listeners = {} :: { [string]: { (...any) -> () } }
 	self._broadcastRemote = NetworkRouter:CreateRemoteEvent("RoundUpdate")
 	self._waitTask = nil
+	self._roundTimerTask = nil
+	self._mapModel = nil
 	self._destroyed = false
 
 	self._stateMachine:SetTransitionCallback(function(from: string, to: string)
@@ -88,6 +91,17 @@ function RoundSystem:OnPlayerDied(player: Player)
 	end
 	playerState:SetAlive(false)
 	playerState:SetStat("deaths", playerState:GetStat("deaths") + 1)
+
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	local killerUserId = humanoid and humanoid:GetAttribute("LastDamageSource")
+	if killerUserId then
+		local killer = Players:GetPlayerByUserId(killerUserId)
+		local killerState = killer and self._playerStates[killer]
+		if killerState then
+			killerState:SetStat("kills", killerState:GetStat("kills") + 1)
+		end
+	end
+
 	self:_fireEvent("PlayerStatusChanged", player, Configs.PLAYER_STATUSES.Dead)
 	self:_broadcastUpdate()
 	self:_checkWinCondition()
@@ -139,6 +153,14 @@ function RoundSystem:Destroy()
 		task.cancel(self._waitTask)
 		self._waitTask = nil
 	end
+	if self._roundTimerTask then
+		task.cancel(self._roundTimerTask)
+		self._roundTimerTask = nil
+	end
+	if self._mapModel then
+		self._mapModel:Destroy()
+		self._mapModel = nil
+	end
 end
 
 function RoundSystem:_transition(to: string)
@@ -158,6 +180,12 @@ function RoundSystem:_checkWinCondition()
 	local t2 = self._teamStates[2]:Recalculate()
 	local roundOver, winningTeam = WinConditionEvaluator.isRoundOver(t1, t2)
 	if not roundOver then return end
+
+	if self._roundTimerTask then
+		task.cancel(self._roundTimerTask)
+		self._roundTimerTask = nil
+	end
+
 	table.insert(self._roundResults, { winningTeam = winningTeam, stats = {} })
 	self:_fireEvent("RoundOver", winningTeam, self._roundNumber)
 	local gameOver = WinConditionEvaluator.isGameOver(self._roundResults, self._roundNumber)

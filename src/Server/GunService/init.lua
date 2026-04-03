@@ -1,10 +1,13 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 
 local GunStateMachine = require(ReplicatedStorage.Gun.GunStateMachine)
 local PayloadValidator = require(ReplicatedStorage.Gun.PayloadValidator)
 local GunUtility = require(ReplicatedStorage.Gun.GunUtility)
+local RoundConfigs = require(ReplicatedStorage.Round.Configs)
+local ServerEventBus = require(ServerScriptService.ServerEventBus)
 
 local ServerTypes = require(script.Types)
 local ServerConfigs = require(script.Configs)
@@ -14,6 +17,11 @@ local DEBUG = ServerConfigs.DEBUG_MODE
 local debugPrint = DebugUtility.Print
 
 local GunService = {}
+
+local currentRoundState: string = ""
+ServerEventBus:Connect("RoundStateChanged", function(newState: string)
+	currentRoundState = newState
+end)
 
 local playerStates: { [Player]: ServerTypes.PlayerGunState } = {}
 
@@ -39,7 +47,6 @@ function GunService.OnPlayerAdded(player: Player)
 			warn(`[GunService] Remote spoofing detected: {firingPlayer.Name} on {player.Name}'s remote`)
 			return
 		end
-		print(`[GunService] Received action request from {player.Name}: {payload.desiredAction}`)
 		GunService._handleActionRequest(player, payload)
 	end)
 
@@ -73,6 +80,11 @@ function GunService._hasGunEquipped(player: Player): boolean
 end
 
 function GunService._handleActionRequest(player: Player, payload: any)
+	if currentRoundState ~= RoundConfigs.GAME_STATES.RoundActive then
+		warn(`[GunService] Action rejected: round state is {currentRoundState}`)
+		return
+	end
+
 	local state = playerStates[player]
 	if not state then
 		warn(`[GunService] No state for {player.Name}`)
@@ -96,11 +108,9 @@ function GunService._handleActionRequest(player: Player, payload: any)
 	if not action then return end
 
 	local now = tick()
-	print(now, state)
 	local timeSinceLast = now - state.lastActionTimestamp
 	if timeSinceLast < (action.cooldown - ServerConfigs.RATE_LIMIT_BUFFER) then
 		warn(`[GunService] Rate limit: {player.Name} ({timeSinceLast}s since last)`)
-		print(debug.traceback())
 		GunService._sendStateOverride(player, state, payload.sequenceId)
 		return
 	end

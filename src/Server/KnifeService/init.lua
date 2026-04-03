@@ -1,10 +1,13 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 
 local KnifeStateMachine = require(ReplicatedStorage.Knife.KnifeStateMachine)
 local PayloadValidator = require(ReplicatedStorage.Knife.PayloadValidator)
 local KnifeUtility = require(ReplicatedStorage.Knife.KnifeUtility)
+local RoundConfigs = require(ReplicatedStorage.Round.Configs)
+local ServerEventBus = require(ServerScriptService.ServerEventBus)
 
 local ServerTypes = require(script.Types)
 local ServerConfigs = require(script.Configs)
@@ -14,6 +17,11 @@ local DEBUG = ServerConfigs.DEBUG_MODE
 local debugPrint = DebugUtility.Print
 
 local KnifeService = {}
+
+local currentRoundState: string = ""
+ServerEventBus:Connect("RoundStateChanged", function(newState: string)
+	currentRoundState = newState
+end)
 
 local playerStates: { [Player]: ServerTypes.PlayerKnifeState } = {}
 
@@ -84,6 +92,11 @@ function KnifeService._hasKnifeEquipped(player: Player): boolean
 end
 
 function KnifeService._handleActionRequest(player: Player, payload: any)
+	if currentRoundState ~= RoundConfigs.GAME_STATES.RoundActive then
+		warn(`[KnifeService] Action rejected: round state is {currentRoundState}`)
+		return
+	end
+
 	local state = playerStates[player]
 	if not state then
 		warn(`[KnifeService] No state for {player.Name}`)
