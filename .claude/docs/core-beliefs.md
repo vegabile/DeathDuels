@@ -24,8 +24,8 @@ Depend on contracts, not implementations. Inject dependencies through interfaces
 
 RUTHLESSLY PURGE uncertainty. If its not CRYSTAL CLEAR, YOU EITHER FIX IT OR REMOVE IT
 
-After you make changes, follow the CI/CD framework by writing tests for it and testing it alongside everything else in Lune.
-
 Example:
 function handleButtonPressed(Button : TextButton) -- Passed in
 handleButtonPressed(nil) -- FOR NOW
+
+You will be writing PURE UTILITY UNLESS I have also instructed you to write execution.
