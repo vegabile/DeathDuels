@@ -39,6 +39,10 @@ local function loadAndPositionPlayers(system)
 	local spawnGroups = getSpawnAssignment(system)
 
 	for teamNum, spawns in spawnGroups do
+		if #spawns == 0 then
+			warn(`[RoundOrchestrator] No spawn parts found for team {teamNum}`)
+			continue
+		end
 		local players = system._teamPlayers[teamNum]
 		for i, player in players do
 			if not system._playerStates[player] then continue end
@@ -108,7 +112,9 @@ local function enterRoundActive(system)
 	system._roundNumber += 1
 
 	task.spawn(function()
+		system._positioningPlayers = true
 		loadAndPositionPlayers(system)
+		system._positioningPlayers = false
 		system:_broadcastUpdate()
 
 		system._roundTimerTask = task.delay(Configs.ROUND_DURATION, function()
@@ -213,7 +219,13 @@ function RoundOrchestrator.enter(state: string, system)
 		warn(`[RoundOrchestrator] No handler for state: {state}`)
 		return
 	end
-	handler(system)
+	local ok, err = pcall(handler, system)
+	if not ok then
+		warn(`[RoundOrchestrator] Handler error in state {state}: {err}`)
+		if state ~= Configs.GAME_STATES.Aborted and state ~= Configs.GAME_STATES.TeleportingOut then
+			system:_transition(Configs.GAME_STATES.Aborted)
+		end
+	end
 end
 
 return RoundOrchestrator

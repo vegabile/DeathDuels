@@ -24,6 +24,10 @@ function PayloadValidator.validate(payload: any): (boolean, string?)
 		return false, "sequenceId is not a number"
 	end
 
+	if payload.sequenceId < 1 or math.floor(payload.sequenceId) ~= payload.sequenceId then
+		return false, "sequenceId must be a positive integer"
+	end
+
 	if payload.directionVector ~= nil then
 		if typeof(payload.directionVector) ~= "Vector3" then
 			return false, "directionVector is not a Vector3"

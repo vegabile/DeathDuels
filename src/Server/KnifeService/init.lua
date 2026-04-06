@@ -79,6 +79,7 @@ function KnifeService.OnPlayerDied(player: Player)
 	if not state then return end
 
 	KnifeStateMachine.resetAll(state.stateMachine)
+	state.lastActionTimestamp = 0
 
 	if state.currentTickConnection then
 		state.currentTickConnection:Disconnect()
@@ -119,7 +120,7 @@ function KnifeService._handleActionRequest(player: Player, payload: any)
 	local action = ActionRegistry.getAction(payload.desiredAction)
 	if not action then return end
 
-	local now = os.clock()
+	local now = tick()
 	local timeSinceLast = now - state.lastActionTimestamp
 	if timeSinceLast < (action.cooldown - ServerConfigs.RATE_LIMIT_BUFFER) then
 		warn(`[KnifeService] Rate limit: {player.Name} ({timeSinceLast}s since last)`)
@@ -144,7 +145,7 @@ function KnifeService._handleActionRequest(player: Player, payload: any)
 	action.serverExecute(player, state, directionVector)
 
 	task.delay(action.cooldown, function()
-		if not playerStates[player] then return end
+		if playerStates[player] ~= state then return end
 		KnifeStateMachine.resetAction(state.stateMachine, action.name)
 		NetworkRouter:Call(KnifeService._getRemoteName(player), player, {
 			payloadType = "CooldownReset",

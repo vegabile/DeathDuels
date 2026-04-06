@@ -67,8 +67,9 @@ function PlayerState:IsLocked(): boolean
 end
 
 function PlayerState:Reset()
-	self.stats.kills = 0
-	self.stats.deaths = 0
+	for key, value in Configs.DEFAULT_STATS do
+		self.stats[key] = value
+	end
 	self.status = Configs.PLAYER_STATUSES.Alive
 	self.isInGame = true
 	self._locked = false

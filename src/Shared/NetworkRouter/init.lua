@@ -6,23 +6,9 @@ local cache = {}
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local isServer = RunService:IsServer()
 
-local initialized = false
-
---
-function NetworkRouter:Init()
-	if isServer then
-		initialized = true
-	end
-end
-
 function NetworkRouter:Get(name)
 	if cache[name] then
 		return cache[name]
-	end
-	if (isServer) then
-		repeat
-			task.wait()
-		until initialized
 	end
 
 	if isServer then
@@ -33,7 +19,10 @@ function NetworkRouter:Get(name)
 		return remote
 	else
 		local remote = remotesFolder:WaitForChild(name, 10)
-		assert(remote, "NetworkRouter: Remote '" .. name .. "' not found")
+		if not remote then
+			warn(`[NetworkRouter] Remote '{name}' not found`)
+			return nil
+		end
 		cache[name] = remote
 		return remote
 	end
@@ -41,7 +30,10 @@ end
 
 if isServer then
 	function NetworkRouter:CreateRemoteFunction(name)
-		assert(not cache[name], "NetworkRouter: '" .. name .. "' already exists")
+		if cache[name] then
+			warn(`[NetworkRouter] '{name}' already exists`)
+			return cache[name]
+		end
 		local rf = Instance.new("RemoteFunction")
 		rf.Name = name
 		rf.Parent = remotesFolder
@@ -50,7 +42,10 @@ if isServer then
 	end
 
 	function NetworkRouter:CreateRemoteEvent(name)
-		assert(not cache[name], "NetworkRouter: '" .. name .. "' already exists")
+		if cache[name] then
+			warn(`[NetworkRouter] '{name}' already exists`)
+			return cache[name]
+		end
 		local re = Instance.new("RemoteEvent")
 		re.Name = name
 		re.Parent = remotesFolder

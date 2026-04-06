@@ -120,6 +120,10 @@ function DataService.RemoveCoins(player : Player, amount : number) : Types.Opera
 	if not data then
 		return { successful = false, errorMessage = "Profile not found" }
 	end
+	if data.Coin < amount then
+		warn(`[DataService] Insufficient coins for {player.Name}: has {data.Coin}, needs {amount}`)
+		return { successful = false, errorMessage = "Insufficient coins" }
+	end
 	return DataService._modifyCoins(player, data.Coin - amount)
 end
 

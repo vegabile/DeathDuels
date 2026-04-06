@@ -105,8 +105,12 @@ function KnifeController._handleServerResponse(payload: any)
 			debugPrint(DEBUG, `[KnifeController] Ignoring stale StateOverride (seq {payload.sequenceId} < {sequenceId})`)
 			return
 		end
-		stateMachine.isStabbing = payload.overriddenState.isStabbing
-		stateMachine.isThrowing = payload.overriddenState.isThrowing
+		if type(payload.overriddenState) ~= "table" then
+			warn("[KnifeController] StateOverride missing overriddenState table")
+			return
+		end
+		stateMachine.isStabbing = payload.overriddenState.isStabbing == true
+		stateMachine.isThrowing = payload.overriddenState.isThrowing == true
 		debugPrint(DEBUG, `[KnifeController] State overridden by server`)
 
 	elseif payload.payloadType == "ProjectileHitConfirm" then

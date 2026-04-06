@@ -45,7 +45,7 @@ return {
 	LEGAL_TRANSITIONS = {
 		WaitingForPlayers = { "AssigningTeams", "Aborted" },
 		AssigningTeams = { "RoundActive", "Aborted" },
-		RoundActive = { "RoundIntermission", "Aborted" },
+		RoundActive = { "RoundIntermission", "GameOver", "Aborted" },
 		RoundIntermission = { "RoundActive", "GameOver", "Aborted" },
 		GameOver = { "TeleportingOut" },
 		TeleportingOut = {},

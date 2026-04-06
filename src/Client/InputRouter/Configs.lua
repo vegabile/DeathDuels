@@ -1,5 +1,5 @@
 return {
-	DEBUG_MODE = true,
+	DEBUG_MODE = false,
 
 	KnifeBindings = {
 		Stab = {

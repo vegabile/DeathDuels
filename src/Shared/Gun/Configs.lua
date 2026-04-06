@@ -1,5 +1,5 @@
 return {
-	DEBUG_MODE = true,
+	DEBUG_MODE = false,
 	ValidActions = { "Shoot" },
 	MaxDirectionMagnitude = 1.1,
 	ShootCooldown = 5,

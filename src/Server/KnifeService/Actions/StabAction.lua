@@ -18,13 +18,13 @@ StabAction.animationId = SharedConfigs.StabAnimationId
 
 function StabAction.serverExecute(player: Player, playerState: any, _directionVector: Vector3?)
 	playerState.alreadyHit = {}
-	local startTime = os.clock()
+	local startTime = tick()
 
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
 
 	playerState.currentTickConnection = RunService.Heartbeat:Connect(function()
-		if os.clock() - startTime >= StabAction.duration then
+		if tick() - startTime >= StabAction.duration then
 			if playerState.currentTickConnection then
 				playerState.currentTickConnection:Disconnect()
 				playerState.currentTickConnection = nil

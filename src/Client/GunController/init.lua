@@ -105,7 +105,11 @@ function GunController._handleServerResponse(payload: any)
 			debugPrint(DEBUG, `[GunController] Ignoring stale StateOverride (seq {payload.sequenceId} < {sequenceId})`)
 			return
 		end
-		stateMachine.isShooting = payload.overriddenState.isShooting
+		if type(payload.overriddenState) ~= "table" then
+			warn("[GunController] StateOverride missing overriddenState table")
+			return
+		end
+		stateMachine.isShooting = payload.overriddenState.isShooting == true
 		debugPrint(DEBUG, `[GunController] State overridden by server`)
 
 	elseif payload.payloadType == "ProjectileHitConfirm" then

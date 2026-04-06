@@ -1,5 +1,5 @@
 return {
-	DEBUG_MODE = true,
+	DEBUG_MODE = false,
 	ValidActions = { "Stab", "Throw" },
 	MaxDirectionMagnitude = 1.1,
 	StabCooldown = 5,

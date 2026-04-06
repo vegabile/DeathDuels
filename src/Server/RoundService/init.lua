@@ -36,6 +36,7 @@ function RoundSystem.new(metadata: TeleportMetadata)
 	self._roundTimerTask = nil
 	self._mapModel = nil
 	self._destroyed = false
+	self._positioningPlayers = false
 
 	self._stateMachine:SetTransitionCallback(function(from: string, to: string)
 		self:_onStateChanged(from, to)
@@ -175,6 +176,7 @@ function RoundSystem:_onStateChanged(from: string, to: string)
 end
 
 function RoundSystem:_checkWinCondition()
+	if self._positioningPlayers then return end
 	if not self._teamStates[1] or not self._teamStates[2] then return end
 	local t1 = self._teamStates[1]:Recalculate()
 	local t2 = self._teamStates[2]:Recalculate()

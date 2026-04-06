@@ -73,6 +73,7 @@ function GunService.OnPlayerDied(player: Player)
 	if not state then return end
 
 	GunStateMachine.resetAll(state.stateMachine)
+	state.lastActionTimestamp = 0
 end
 
 function GunService._hasGunEquipped(player: Player): boolean
@@ -132,7 +133,7 @@ function GunService._handleActionRequest(player: Player, payload: any)
 	action.serverExecute(player, state, directionVector)
 
 	task.delay(action.cooldown, function()
-		if not playerStates[player] then return end
+		if playerStates[player] ~= state then return end
 		GunStateMachine.resetAction(state.stateMachine, action.name)
 		NetworkRouter:Call(GunService._getRemoteName(player), player, {
 			payloadType = "CooldownReset",
