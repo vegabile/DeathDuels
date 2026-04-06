@@ -186,11 +186,25 @@ end
 
 local function enterTeleportingOut(system)
 	local players = {}
+	local seen = {}
+
 	for player in system._playerStates do
-		table.insert(players, player)
+		if not seen[player] then
+			seen[player] = true
+			table.insert(players, player)
+		end
 	end
 
-	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, nil)
+	--// Include players still in the pending list (abort during WaitingForPlayers)
+	for _, player in system._pendingPlayers do
+		if not seen[player] then
+			seen[player] = true
+			table.insert(players, player)
+		end
+	end
+
+	local _, overallWinner = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
+	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, overallWinner)
 	local ok, err = TeleportUtility.teleportPlayersWithRetry(players, Configs.LOBBY_PLACE_ID, payload)
 	if not ok then
 		warn(`[RoundOrchestrator] Teleport failed after retries: {err}`)

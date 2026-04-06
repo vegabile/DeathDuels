@@ -23,8 +23,15 @@ function TeleportUtility._teleportPlayers(players: { Player }, placeId: number, 
 		return false, "No players to teleport"
 	end
 
+	if placeId == 0 then
+		warn("[TeleportUtility] LOBBY_PLACE_ID is 0 — set it in Shared/Round/Configs.lua")
+		return false, "LOBBY_PLACE_ID not configured"
+	end
+
 	local ok, err = pcall(function()
-		TeleportService:TeleportPartyAsync(placeId, players, teleportData)
+		local options = Instance.new("TeleportOptions")
+		options:SetTeleportData(teleportData)
+		TeleportService:TeleportAsync(placeId, players, options)
 	end)
 
 	if not ok then

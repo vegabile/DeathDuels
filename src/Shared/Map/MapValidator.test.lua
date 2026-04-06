@@ -2,6 +2,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MapValidator = require(ReplicatedStorage.Map.MapValidator)
+local MapConfigs = require(ReplicatedStorage.Map.Configs)
 
 local passed = 0
 local failed = 0
@@ -40,14 +41,13 @@ end
 -- ─── Valid map ────────────────────────────────────────────────────────────────
 
 do
-	--// Pull a real map name straight from the folder so the test stays in sync
-	local mapsFolder = ReplicatedStorage:FindFirstChild("Maps")
-	if mapsFolder and #mapsFolder:GetChildren() > 0 then
-		local realMap = mapsFolder:GetChildren()[1].Name
-		local ok, err = MapValidator.validate(realMap)
-		check(`accepts real map "{realMap}"`, ok, err)
+	--// Pull the first registered map so the test stays in sync with the registry
+	if #MapConfigs.REGISTERED_MAPS > 0 then
+		local registeredName = MapConfigs.REGISTERED_MAPS[1]
+		local ok, err = MapValidator.validate(registeredName)
+		check(`accepts registered map "{registeredName}"`, ok, err)
 	else
-		print("SKIP: no maps in ReplicatedStorage.Maps to test with")
+		print("SKIP: REGISTERED_MAPS is empty — fill in Shared/Map/Configs.lua")
 	end
 end
 
@@ -82,20 +82,20 @@ do
 end
 
 do
+	--// Unregistered map: exists in the folder but absent from REGISTERED_MAPS
 	local mapsFolder = ReplicatedStorage:FindFirstChild("Maps")
 	if mapsFolder then
 		local tempMap = Instance.new("Folder")
 		tempMap.Name = "_TestEmptyMap"
 		tempMap.Parent = mapsFolder
 
-		local ok = pcall(function()
-			MapValidator.validate("_TestEmptyMap")
-		end)
+		local ok, err = MapValidator.validate("_TestEmptyMap")
+		check("returns false for unregistered map", not ok)
+		check("unregistered map error is non-nil", err ~= nil)
 
-		check("error() fires for map with zero spawn parts", not ok)
 		tempMap:Destroy()
 	else
-		print("SKIP: no Maps folder to test spawn crash")
+		print("SKIP: no Maps folder")
 	end
 end
 

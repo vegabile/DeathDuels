@@ -1,5 +1,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Configs = require(ReplicatedStorage.Round.Configs)
+local MapConfigs = require(ReplicatedStorage.Map.Configs)
 
 local MapValidator = {}
 
@@ -26,6 +27,23 @@ function MapValidator.validate(mapName: any): (boolean, string?)
 		return false, `Unknown map: {mapName}`
 	end
 
+	local isRegistered = false
+	for _, registeredName in MapConfigs.REGISTERED_MAPS do
+		if registeredName == mapName then
+			isRegistered = true
+			break
+		end
+	end
+	if not isRegistered then
+		warn(`[MapValidator] Map "{mapName}" is not in REGISTERED_MAPS`)
+		return false, `Map "{mapName}" is not registered`
+	end
+
+	if not mapModel:IsA("Model") then
+		warn(`[MapValidator] Map "{mapName}" exists but is not a Model instance`)
+		return false, `Map "{mapName}" is not a Model`
+	end
+
 	local redCount = 0
 	local blueCount = 0
 	for _, desc in mapModel:GetDescendants() do
@@ -37,7 +55,8 @@ function MapValidator.validate(mapName: any): (boolean, string?)
 	end
 
 	if redCount < Configs.MAX_PLAYERS_PER_TEAM or blueCount < Configs.MAX_PLAYERS_PER_TEAM then
-		error(`Map "{mapName}" has insufficient spawn parts: {redCount} red, {blueCount} blue, need {Configs.MAX_PLAYERS_PER_TEAM} each`)
+		warn(`[MapValidator] Map "{mapName}" has insufficient spawn parts: {redCount} red, {blueCount} blue (need {Configs.MAX_PLAYERS_PER_TEAM} each)`)
+		return false, `Map "{mapName}" has insufficient spawn parts`
 	end
 
 	return true, nil
