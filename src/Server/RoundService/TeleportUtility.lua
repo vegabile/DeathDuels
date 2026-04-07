@@ -1,5 +1,6 @@
 local TeleportService = game:GetService("TeleportService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GlobalConfigs = require(ReplicatedStorage.GlobalConfigs)
 local Configs = require(ReplicatedStorage.Round.Configs)
 
 local TeleportUtility = {}
@@ -25,6 +26,12 @@ function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, rou
 end
 
 function TeleportUtility._teleportPlayers(players: { Player }, placeId: number, teleportData: {}): (boolean, string?)
+	--// TEST_MODE: suppress TeleportAsync so the Studio session stays open
+	if GlobalConfigs.TEST_MODE then
+		warn("[TeleportUtility] TEST_MODE active — skipping TeleportAsync")
+		return true, nil
+	end
+
 	if #players == 0 then
 		warn("[TeleportUtility] No players to teleport")
 		return false, "No players to teleport"

@@ -40,13 +40,16 @@ local function loadAndPositionPlayers(system)
 	local remaining = 0
 
 	for teamNum, spawns in spawnGroups do
+		local players = system._teamPlayers[teamNum]
 		if #spawns == 0 then
-			warn(`[RoundOrchestrator] No spawn parts found for team {teamNum}`)
+			warn(`[Round] No spawn parts found for team {teamNum}`)
 			continue
 		end
-		local players = system._teamPlayers[teamNum]
 		for i, player in players do
-			if not system._playerStates[player] then continue end
+			if not system._playerStates[player] then
+				warn(`[Round] {player.Name} skipped — no playerState`)
+				continue
+			end
 			remaining += 1
 
 			local spawnPart = spawns[((i - 1) % #spawns) + 1]
@@ -60,8 +63,9 @@ local function loadAndPositionPlayers(system)
 				local rootPart = character:WaitForChild("HumanoidRootPart", Configs.CHARACTER_LOAD_TIMEOUT)
 				if rootPart then
 					rootPart.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
+					print(`[Round] {player.Name} → Team {teamNum} → {spawnPart.Name}`)
 				else
-					warn(`[RoundOrchestrator] Character load timed out for {player.Name}`)
+					warn(`[Round] Character load timed out for {player.Name}`)
 				end
 
 				remaining -= 1
@@ -76,8 +80,10 @@ local function loadAndPositionPlayers(system)
 end
 
 local function enterWaitingForPlayers(system)
+	print(`[Round] State: WaitingForPlayers — fallback in {Configs.WAITING_PERIOD}s`)
 	system._waitTask = task.delay(Configs.WAITING_PERIOD, function()
 		if system._stateMachine:GetState() == Configs.GAME_STATES.WaitingForPlayers then
+			print("[Round] Wait period elapsed — advancing to AssigningTeams")
 			system:_transition(Configs.GAME_STATES.AssigningTeams)
 		end
 	end)
@@ -89,12 +95,13 @@ local function enterAssigningTeams(system)
 		system._waitTask = nil
 	end
 
-	--// Load map
 	local mapName = TeleportMetadataService.GetMapName()
+	print(`[Round] State: AssigningTeams — map: "{mapName}"`)
+
 	local mapsFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Maps")
 	local mapTemplate = mapsFolder and mapsFolder:FindFirstChild(mapName)
 	if not mapTemplate then
-		warn(`[RoundOrchestrator] Map "{mapName}" not found, aborting`)
+		warn(`[Round] Map "{mapName}" not found — aborting`)
 		system:_transition(Configs.GAME_STATES.Aborted)
 		return
 	end
@@ -106,12 +113,17 @@ local function enterAssigningTeams(system)
 	for _, player in system._pendingPlayers do
 		local team = TeleportMetadataService.GetTeam(player)
 		if not team then
-			warn(`[RoundOrchestrator] No team found for {player.Name}, skipping`)
-			continue
+			local t1 = #system._teamPlayers[1]
+			local t2 = #system._teamPlayers[2]
+			team = (t1 <= t2) and 1 or 2
+			warn(`[Round] {player.Name} had no team — dynamically assigned to team {team}`)
+			TeleportMetadataService.SetTeam(player.UserId, team)
 		end
 		system._playerStates[player] = PlayerState.new(player, team)
 		table.insert(system._teamPlayers[team], player)
 	end
+
+	print(`[Round] Team 1: {#system._teamPlayers[1]} player(s) | Team 2: {#system._teamPlayers[2]} player(s)`)
 
 	system._teamStates[1] = TeamState.new(1, system._teamPlayers[1], system._playerStates)
 	system._teamStates[2] = TeamState.new(2, system._teamPlayers[2], system._playerStates)
@@ -121,6 +133,7 @@ end
 
 local function enterRoundActive(system)
 	system._roundNumber += 1
+	print(`[Round] State: RoundActive — Round {system._roundNumber} | {Configs.ROUND_DURATION}s`)
 
 	task.spawn(function()
 		system._positioningPlayers = true
@@ -146,6 +159,8 @@ local function enterRoundActive(system)
 				winningTeam = 2
 			end
 
+			print(`[Round] Time expired — winner: {winningTeam and "Team "..winningTeam or "Draw"}`)
+
 			table.insert(system._roundResults, { winningTeam = winningTeam, stats = {} })
 			system:_fireEvent("RoundOver", winningTeam, system._roundNumber)
 
@@ -164,6 +179,10 @@ local function enterRoundIntermission(system)
 		task.cancel(system._roundTimerTask)
 		system._roundTimerTask = nil
 	end
+
+	local lastResult = system._roundResults[#system._roundResults]
+	local winner = lastResult and lastResult.winningTeam
+	print(`[Round] State: RoundIntermission — Round {system._roundNumber} winner: {winner and "Team "..winner or "Draw"} | {Configs.ROUND_INTERMISSION_DURATION}s`)
 
 	for _, playerState in system._playerStates do
 		playerState:Lock()
@@ -190,7 +209,10 @@ end
 
 local function enterGameOver(system)
 	local lastResult = system._roundResults[#system._roundResults]
-	system:_fireEvent("GameOver", lastResult and lastResult.winningTeam or nil)
+	local winner = lastResult and lastResult.winningTeam
+	print(`[Round] State: GameOver — Overall winner: {winner and "Team "..winner or "No winner"} | Teleporting in {Configs.GAME_OVER_DURATION}s`)
+
+	system:_fireEvent("GameOver", winner)
 
 	system._waitTask = task.delay(Configs.GAME_OVER_DURATION, function()
 		system._waitTask = nil
@@ -209,7 +231,6 @@ local function enterTeleportingOut(system)
 		end
 	end
 
-	--// Include players still in the pending list (abort during WaitingForPlayers)
 	for _, player in system._pendingPlayers do
 		if not seen[player] and player.Parent ~= nil then
 			seen[player] = true
@@ -217,15 +238,18 @@ local function enterTeleportingOut(system)
 		end
 	end
 
+	print(`[Round] State: TeleportingOut — {#players} player(s)`)
+
 	local _, overallWinner = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
 	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, overallWinner, system._disconnectedStats)
 	local ok, err = TeleportUtility.teleportPlayersWithRetry(players, Configs.LOBBY_PLACE_ID, payload)
 	if not ok then
-		warn(`[RoundOrchestrator] Teleport failed after retries: {err}`)
+		warn(`[Round] Teleport failed after retries: {err}`)
 	end
 end
 
 local function enterAborted(system)
+	print("[Round] State: Aborted — transitioning to TeleportingOut")
 	system:_transition(Configs.GAME_STATES.TeleportingOut)
 end
 
@@ -244,12 +268,12 @@ function RoundOrchestrator.enter(state: string, system)
 
 	local handler = handlers[state]
 	if not handler then
-		warn(`[RoundOrchestrator] No handler for state: {state}`)
+		warn(`[Round] No handler for state: {state}`)
 		return
 	end
 	local ok, err = pcall(handler, system)
 	if not ok then
-		warn(`[RoundOrchestrator] Handler error in state {state}: {err}`)
+		warn(`[Round] Handler error in state {state}: {err}`)
 		if state ~= Configs.GAME_STATES.Aborted and state ~= Configs.GAME_STATES.TeleportingOut then
 			system:_transition(Configs.GAME_STATES.Aborted)
 		end

@@ -54,6 +54,7 @@ function RoundSystem:RegisterPlayer(player: Player)
 		return
 	end
 	table.insert(self._pendingPlayers, player)
+	print(`[Round] {player.Name} registered ({#self._pendingPlayers}/{self._expectedPlayerCount})`)
 	if #self._pendingPlayers >= self._expectedPlayerCount then
 		self:_transition(Configs.GAME_STATES.AssigningTeams)
 	end

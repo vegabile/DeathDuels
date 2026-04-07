@@ -30,9 +30,11 @@ return {
 	ROUNDS_TO_WIN = 5,
 	MAX_ROUNDS = 9,
 
+	INITIAL_SPAWN_PART = "InitialSpawnBox",
+
 	SPAWN_PARTS = {
-		Red = "RedPart",
-		Blue = "BluePart",
+		Red = "RedSpawn",
+		Blue = "BlueSpawn",
 	},
 
 	GAME_MODES = {

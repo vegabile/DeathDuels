@@ -26,6 +26,10 @@ function TeleportMetadataService.Initialize(metadata: TeleportMetadata)
 	_initialized = true
 end
 
+function TeleportMetadataService.SetTeam(userId: number, team: number)
+	_teams[userId] = team
+end
+
 function TeleportMetadataService.GetTeam(player: Player): number?
 	local team = _teams[player.UserId]
 	if not team then

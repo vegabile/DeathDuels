@@ -1,6 +1,14 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local WeaponDistributor = require(script.Parent)
+local ServerEventBus = require(ServerScriptService.ServerEventBus)
+local RoundConfigs = require(ReplicatedStorage.Round.Configs)
+
+local _roundActive = false
+ServerEventBus:Connect("RoundStateChanged", function(state)
+	_roundActive = (state == RoundConfigs.GAME_STATES.RoundActive)
+end)
 
 local knifeModels = ReplicatedStorage:FindFirstChild("KnifeModels")
 if not knifeModels then
@@ -33,6 +41,7 @@ if not ok then
 end
 
 local function distribute(player: Player)
+	if not _roundActive then return end
 	WeaponDistributor.distributeToPlayer(player)
 end
 
