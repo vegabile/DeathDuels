@@ -37,6 +37,7 @@ end
 
 local function loadAndPositionPlayers(system)
 	local spawnGroups = getSpawnAssignment(system)
+	local remaining = 0
 
 	for teamNum, spawns in spawnGroups do
 		if #spawns == 0 then
@@ -46,21 +47,31 @@ local function loadAndPositionPlayers(system)
 		local players = system._teamPlayers[teamNum]
 		for i, player in players do
 			if not system._playerStates[player] then continue end
+			remaining += 1
 
 			local spawnPart = spawns[((i - 1) % #spawns) + 1]
 
-			if not player.Character or not player.Character:FindFirstChild("Humanoid") or player.Character.Humanoid.Health <= 0 then
-				player:LoadCharacter()
-			end
+			task.spawn(function()
+				if not player.Character or not player.Character:FindFirstChild("Humanoid") or player.Character.Humanoid.Health <= 0 then
+					player:LoadCharacter()
+				end
 
-			local character = player.Character or player.CharacterAdded:Wait()
-			local rootPart = character:WaitForChild("HumanoidRootPart", Configs.CHARACTER_LOAD_TIMEOUT)
-			if rootPart then
-				rootPart.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
-			else
-				warn(`[RoundOrchestrator] Character load timed out for {player.Name}`)
-			end
+				local character = player.Character or player.CharacterAdded:Wait()
+				local rootPart = character:WaitForChild("HumanoidRootPart", Configs.CHARACTER_LOAD_TIMEOUT)
+				if rootPart then
+					rootPart.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
+				else
+					warn(`[RoundOrchestrator] Character load timed out for {player.Name}`)
+				end
+
+				remaining -= 1
+			end)
 		end
+	end
+
+	--// Wait for all players to finish loading
+	while remaining > 0 do
+		task.wait()
 	end
 end
 
@@ -116,6 +127,9 @@ local function enterRoundActive(system)
 		loadAndPositionPlayers(system)
 		system._positioningPlayers = false
 		system:_broadcastUpdate()
+		system:_checkWinCondition()
+
+		if system._stateMachine:GetState() ~= Configs.GAME_STATES.RoundActive then return end
 
 		system._roundTimerTask = task.delay(Configs.ROUND_DURATION, function()
 			system._roundTimerTask = nil
@@ -189,7 +203,7 @@ local function enterTeleportingOut(system)
 	local seen = {}
 
 	for player in system._playerStates do
-		if not seen[player] then
+		if not seen[player] and player.Parent ~= nil then
 			seen[player] = true
 			table.insert(players, player)
 		end
@@ -197,14 +211,14 @@ local function enterTeleportingOut(system)
 
 	--// Include players still in the pending list (abort during WaitingForPlayers)
 	for _, player in system._pendingPlayers do
-		if not seen[player] then
+		if not seen[player] and player.Parent ~= nil then
 			seen[player] = true
 			table.insert(players, player)
 		end
 	end
 
 	local _, overallWinner = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
-	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, overallWinner)
+	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, overallWinner, system._disconnectedStats)
 	local ok, err = TeleportUtility.teleportPlayersWithRetry(players, Configs.LOBBY_PLACE_ID, payload)
 	if not ok then
 		warn(`[RoundOrchestrator] Teleport failed after retries: {err}`)

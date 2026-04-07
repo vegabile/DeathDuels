@@ -6,6 +6,7 @@ local KnifeUtility = require(ReplicatedStorage.Knife.KnifeUtility)
 
 local ServerConfigs = require(script.Parent.Parent.Configs)
 local KnifeProjectileHandler = require(script.Parent.Parent.KnifeProjectileHandler)
+local TeleportMetadataService = require(script.Parent.Parent.Parent.RoundService.TeleportMetadataService)
 
 local DEBUG = ServerConfigs.DEBUG_MODE
 local debugPrint = DebugUtility.Print
@@ -40,6 +41,8 @@ function ThrowAction.serverExecute(player: Player, playerState: any, directionVe
 
 	--// The knife tool itself is the projectile template
 	KnifeProjectileHandler.spawnProjectile(player, directionVector, knifeTool, blacklist, function(hitPlayer)
+		if TeleportMetadataService.GetTeam(hitPlayer) == TeleportMetadataService.GetTeam(player) then return end
+
 		local humanoid = hitPlayer.Character and hitPlayer.Character:FindFirstChildOfClass("Humanoid")
 		if humanoid then
 			humanoid:SetAttribute("LastDamageSource", player.UserId)

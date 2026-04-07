@@ -6,6 +6,10 @@ local cache = {}
 local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
 local isServer = RunService:IsServer()
 
+function NetworkRouter:Remove(name)
+	cache[name] = nil
+end
+
 function NetworkRouter:Get(name)
 	if cache[name] then
 		return cache[name]

@@ -65,7 +65,12 @@ function KnifeController.performAction(actionName: string)
 		local handle = knifeTool and knifeTool:FindFirstChild("Handle")
 		local targetPos = InputPosition.getInputPosition()
 		if handle and targetPos then
-			directionVector = (targetPos - handle.Position).Unit
+			local delta = targetPos - handle.Position
+			if delta.Magnitude < 0.01 then
+				KnifeStateMachine.resetAction(stateMachine, actionName)
+				return
+			end
+			directionVector = delta.Unit
 		end
 	end
 
@@ -111,6 +116,10 @@ function KnifeController._handleServerResponse(payload: any)
 		end
 		stateMachine.isStabbing = payload.overriddenState.isStabbing == true
 		stateMachine.isThrowing = payload.overriddenState.isThrowing == true
+		if safetyTimeoutThread then
+			task.cancel(safetyTimeoutThread)
+			safetyTimeoutThread = nil
+		end
 		debugPrint(DEBUG, `[KnifeController] State overridden by server`)
 
 	elseif payload.payloadType == "ProjectileHitConfirm" then

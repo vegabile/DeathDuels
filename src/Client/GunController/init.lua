@@ -110,6 +110,10 @@ function GunController._handleServerResponse(payload: any)
 			return
 		end
 		stateMachine.isShooting = payload.overriddenState.isShooting == true
+		if safetyTimeoutThread then
+			task.cancel(safetyTimeoutThread)
+			safetyTimeoutThread = nil
+		end
 		debugPrint(DEBUG, `[GunController] State overridden by server`)
 
 	elseif payload.payloadType == "ProjectileHitConfirm" then

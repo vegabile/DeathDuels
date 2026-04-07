@@ -64,6 +64,7 @@ function GunService.OnPlayerRemoving(player: Player)
 		conn:Disconnect()
 	end
 
+	NetworkRouter:Remove(GunService._getRemoteName(player))
 	state.remote:Destroy()
 	playerStates[player] = nil
 end

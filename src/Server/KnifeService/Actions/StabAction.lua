@@ -6,6 +6,7 @@ local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
 local KnifeUtility = require(ReplicatedStorage.Knife.KnifeUtility)
 
 local ServerConfigs = require(script.Parent.Parent.Configs)
+local TeleportMetadataService = require(script.Parent.Parent.Parent.RoundService.TeleportMetadataService)
 local DEBUG = ServerConfigs.DEBUG_MODE
 local debugPrint = DebugUtility.Print
 
@@ -53,6 +54,7 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 			local hitPlayer = Players:GetPlayerFromCharacter(hitCharacter)
 			if not hitPlayer then continue end
 			if hitPlayer == player then continue end
+			if TeleportMetadataService.GetTeam(hitPlayer) == TeleportMetadataService.GetTeam(player) then continue end
 			if playerState.alreadyHit[hitPlayer] then continue end
 
 			if attackerRoot then

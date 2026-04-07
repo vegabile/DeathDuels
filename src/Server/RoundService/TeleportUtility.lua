@@ -4,8 +4,15 @@ local Configs = require(ReplicatedStorage.Round.Configs)
 
 local TeleportUtility = {}
 
-function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, roundResults: { any }, winningTeam: number?)
+function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, roundResults: { any }, winningTeam: number?, disconnectedStats: { [string]: any }?)
 	local serializedStats = {}
+
+	if disconnectedStats then
+		for odUserId, data in disconnectedStats do
+			serializedStats[odUserId] = data
+		end
+	end
+
 	for player, state in playerStates do
 		serializedStats[tostring(player.UserId)] = state:Serialize()
 	end

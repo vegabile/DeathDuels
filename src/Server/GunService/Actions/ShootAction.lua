@@ -7,6 +7,7 @@ local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 local GunUtility = require(ReplicatedStorage.Gun.GunUtility)
 
 local ServerConfigs = require(script.Parent.Parent.Configs)
+local TeleportMetadataService = require(script.Parent.Parent.Parent.RoundService.TeleportMetadataService)
 local DEBUG = ServerConfigs.DEBUG_MODE
 local debugPrint = DebugUtility.Print
 
@@ -83,7 +84,7 @@ function ShootAction.serverExecute(player: Player, _playerState: any, directionV
 		local hitCharacter = result.Instance:FindFirstAncestorOfClass("Model")
 		if hitCharacter then
 			local hitPlayer = Players:GetPlayerFromCharacter(hitCharacter)
-			if hitPlayer and hitPlayer ~= player then
+			if hitPlayer and hitPlayer ~= player and TeleportMetadataService.GetTeam(hitPlayer) ~= TeleportMetadataService.GetTeam(player) then
 				local humanoid = hitCharacter:FindFirstChildOfClass("Humanoid")
 				if humanoid then
 					humanoid:SetAttribute("LastDamageSource", player.UserId)

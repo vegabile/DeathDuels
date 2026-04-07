@@ -70,6 +70,7 @@ function KnifeService.OnPlayerRemoving(player: Player)
 		state.currentTickConnection:Disconnect()
 	end
 
+	NetworkRouter:Remove(KnifeService._getRemoteName(player))
 	state.remote:Destroy()
 	playerStates[player] = nil
 end

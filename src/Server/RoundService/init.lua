@@ -30,6 +30,7 @@ function RoundSystem.new(metadata: TeleportMetadata)
 	self._teamStates = {} :: { [number]: any }
 	self._roundNumber = 0
 	self._roundResults = {}
+	self._disconnectedStats = {} :: { [string]: any }
 	self._listeners = {} :: { [string]: { (...any) -> () } }
 	self._broadcastRemote = NetworkRouter:CreateRemoteEvent("RoundUpdate")
 	self._waitTask = nil
@@ -70,6 +71,7 @@ function RoundSystem:UnregisterPlayer(player: Player)
 	local playerState = self._playerStates[player]
 	if playerState then
 		playerState.status = Configs.PLAYER_STATUSES.Disconnected
+		self._disconnectedStats[tostring(player.UserId)] = playerState:Serialize()
 	end
 	self._playerStates[player] = nil
 
