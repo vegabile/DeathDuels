@@ -102,9 +102,10 @@ function ProjectileFactory.spawnProjectile(
 	overlapParams.FilterType = OVERLAP_PARAMS_FILTER_TYPE
 	overlapParams.FilterDescendantsInstances = excludeList
 
-	local lastPosition = clonedHandle.Position
+	local spawnOrigin = clonedHandle.Position
 	local alreadyHitFromThrow: { [Player]: boolean } = {}
 	local stuck = false
+	local elapsedTime = 0
 	local heartbeatConnection: RBXScriptConnection
 
 	local function stickAndCleanup(hitPosition: Vector3?, hitNormal: Vector3?)
@@ -137,64 +138,55 @@ function ProjectileFactory.spawnProjectile(
 		end
 	end
 
-	heartbeatConnection = RunService.Heartbeat:Connect(function()
+	heartbeatConnection = RunService.Heartbeat:Connect(function(dt)
 		if stuck or not clonedHandle.Parent then
 			debugPrint(DEBUG, `[ProjectileFactory] Exiting heartbeat — stuck={stuck}, parent={clonedHandle.Parent}`)
 			heartbeatConnection:Disconnect()
 			return
 		end
 
+		elapsedTime += dt
 		local currentPosition = clonedHandle.Position
-		local delta = currentPosition - lastPosition
 
-		if delta.Magnitude > 0 then
-			--// Primary detection: raycast from last position with lookahead
-			--// The lookahead catches high-speed misses where the knife moves
-			--// further than one frame's delta in a single step.
-			local rayDirection = delta * RAYCAST_LOOKAHEAD
-			local result = workspace:Raycast(lastPosition, rayDirection, raycastParams)
+		--// Deterministic tumble: re-assert flight-direction orientation + end-over-end spin
+		local baseCFrame = CFrame.new(currentPosition, currentPosition + direction)
+		clonedHandle.CFrame = baseCFrame * CFrame.Angles(elapsedTime * SPIN_RATE, 0, 0)
+
+		--// Primary detection: continuous raycast from spawn origin to current position.
+		--// Covers the entire flight path every frame — thin walls cannot be skipped.
+		local toCurrentPos = currentPosition - spawnOrigin
+		if toCurrentPos.Magnitude > 0 then
+			local result = workspace:Raycast(spawnOrigin, toCurrentPos, raycastParams)
 
 			if result then
 				local handled = processHit(result)
 				if handled then
-					lastPosition = currentPosition
 					return
 				end
 			end
+		end
 
-			--// Secondary detection: overlap check at current position.
-			--// Catches thin/small parts the raycast may thread through,
-			--// and objects the knife is already inside.
-			local touching = workspace:GetPartsInPart(clonedHandle, overlapParams)
-			if #touching > 0 then
-				for _, part in touching do
-					--// Skip parts that are in the exclude list conceptually
-					--// (other projectiles, effects, etc.)
-					if part.CanCollide or part:GetAttribute("KnifeCollidable") then
-						local partCharacter = part:FindFirstAncestorOfClass("Model")
-						if partCharacter then
-							local hitPlayer = Players:GetPlayerFromCharacter(partCharacter)
-							if hitPlayer and hitPlayer ~= owner and not alreadyHitFromThrow[hitPlayer] then
-								alreadyHitFromThrow[hitPlayer] = true
-								stickAndCleanup(currentPosition, nil)
-								if onHit then
-									onHit(hitPlayer)
-								end
-								lastPosition = currentPosition
-								return
-							end
-						else
-							--// Non-player collidable part — stick
+		--// Secondary detection: overlap check for player character hits.
+		--// Characters have complex multi-part geometry that benefits from overlap checks.
+		local touching = workspace:GetPartsInPart(clonedHandle, overlapParams)
+		if #touching > 0 then
+			for _, part in touching do
+				if part.CanCollide or part:GetAttribute("KnifeCollidable") then
+					local partCharacter = part:FindFirstAncestorOfClass("Model")
+					if partCharacter then
+						local hitPlayer = Players:GetPlayerFromCharacter(partCharacter)
+						if hitPlayer and hitPlayer ~= owner and not alreadyHitFromThrow[hitPlayer] then
+							alreadyHitFromThrow[hitPlayer] = true
 							stickAndCleanup(currentPosition, nil)
-							lastPosition = currentPosition
+							if onHit then
+								onHit(hitPlayer)
+							end
 							return
 						end
 					end
 				end
 			end
 		end
-
-		lastPosition = currentPosition
 	end)
 
 	Debris:AddItem(clonedHandle, SharedConfigs.ProjectileMaxLifetime)
