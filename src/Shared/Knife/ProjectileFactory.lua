@@ -85,16 +85,6 @@ function ProjectileFactory.spawnProjectile(
 	linearVelocity.Attachment0 = attachment
 	linearVelocity.Parent = clonedHandle
 
-	--// Tumble end-over-end around the knife's LOCAL right axis (X).
-	--// Because the knife is already oriented along the throw direction,
-	--// spinning on local X gives a realistic forward tumble.
-	local angularVelocity = Instance.new("AngularVelocity")
-	angularVelocity.MaxTorque = math.huge
-	angularVelocity.RelativeTo = Enum.ActuatorRelativeTo.Attachment0
-	angularVelocity.AngularVelocity = Vector3.new(math.pi * 4, 0, 0)
-	angularVelocity.Attachment0 = attachment
-	angularVelocity.Parent = clonedHandle
-
 	--// Build exclude list for raycasts and overlap checks
 	local excludeList = {}
 	if blacklist then
