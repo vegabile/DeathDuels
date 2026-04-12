@@ -43,6 +43,9 @@ end
 
 local function fillLoadouts(sanitized)
 	if type(sanitized.loadouts) ~= "table" then
+		if sanitized.loadouts ~= nil then
+			warn(`[TeleportDataValidator] loadouts is {typeof(sanitized.loadouts)} — defaulting`)
+		end
 		sanitized.loadouts = {}
 	else
 		--// Copy so we don't mutate the caller's loadouts table.

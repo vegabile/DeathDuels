@@ -24,7 +24,7 @@ local function makeValidBase()
 		teamOnePlayers = { { UserId = 1, Name = "Alice" } },
 		teamTwoPlayers = { { UserId = 2, Name = "Bob" } },
 		queueType = 1,
-		mapName = "TestMap",
+		mapName = "TestMap",  --// assumes ReplicatedStorage.Maps.TestMap exists
 		timestamp = os.time(),
 	}
 end
