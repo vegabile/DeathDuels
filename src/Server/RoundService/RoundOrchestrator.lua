@@ -57,6 +57,7 @@ local function loadAndPositionPlayers(system)
 			task.spawn(function()
 				local deadline = os.clock() + Configs.CHARACTER_LOAD_TIMEOUT
 
+				--// LoadCharacter throws if the player disconnects mid-call.
 				pcall(function()
 					if not player.Character
 						or not player.Character:FindFirstChild("Humanoid")
@@ -85,9 +86,9 @@ local function loadAndPositionPlayers(system)
 				--// so the HRP wait is the real "usable character" signal.
 				local rootPart
 				if character and player.Parent then
-					local remainingTime = deadline - os.clock()
-					if remainingTime > 0 then
-						rootPart = character:WaitForChild("HumanoidRootPart", remainingTime)
+					local timeLeft = deadline - os.clock()
+					if timeLeft > 0 then
+						rootPart = character:WaitForChild("HumanoidRootPart", timeLeft)
 					end
 				end
 
