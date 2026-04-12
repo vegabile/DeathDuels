@@ -31,18 +31,26 @@ export type TeleportPlayerEntry = {
 	UserId: number,
 }
 
+export type Loadout = {
+	knifeName: string?,
+	gunName: string?,
+}
+
 export type TeleportMetadata = {
 	teamOnePlayers: { TeleportPlayerEntry },
 	teamTwoPlayers: { TeleportPlayerEntry },
 	queueType: number,
 	mapName: string,
 	timestamp: number,
+	loadouts: { [string]: Loadout },
 }
 
-export type TeleportPayload = {
-	roundResults: { RoundResult },
-	winningTeam: number?,
-	playerStats: { [string]: PlayerStateData },
+export type PlayerDelta = {
+	coinsEarned: number,
+}
+
+export type GameToLobbyPayload = {
+	delta: { [string]: PlayerDelta },
 }
 
 export type WinConditionEvaluator = {
