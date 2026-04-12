@@ -1,3 +1,4 @@
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
@@ -39,7 +40,19 @@ function ThrowAction.serverExecute(player: Player, playerState: any, directionVe
 	local knifeFolder = workspace:FindFirstChild("KnifeIgnoreFolder") or workspace
 	local blacklist = {character, knifeFolder}
 
-	--// The knife tool itself is the projectile template
+	local handle = knifeTool:FindFirstChild("Handle")
+	if handle then
+		for _, otherPlayer in Players:GetPlayers() do
+			if otherPlayer ~= player then
+				NetworkRouter:Call("KnifeThrowBroadcast", otherPlayer, {
+					knifeName = knifeTool.Name,
+					spawnCFrame = handle.CFrame,
+					directionVector = directionVector,
+				})
+			end
+		end
+	end
+
 	KnifeProjectileHandler.spawnProjectile(player, directionVector, knifeTool, blacklist, function(hitPlayer)
 		if TeleportMetadataService.GetTeam(hitPlayer) == TeleportMetadataService.GetTeam(player) then return end
 

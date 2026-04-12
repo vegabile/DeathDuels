@@ -1,6 +1,9 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local KnifeController = require(script.Parent)
 local InputRouter = require(script.Parent.Parent.InputRouter)
+local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
+local ProjectileFactory = require(ReplicatedStorage.Knife.ProjectileFactory)
 
 local localPlayer = Players.LocalPlayer
 
@@ -39,3 +42,38 @@ localPlayer.CharacterAdded:Connect(setupCharacter)
 if localPlayer.Character then
 	setupCharacter(localPlayer.Character)
 end
+
+local function getOrCreateClientFolder(): Folder
+	local folder = workspace:FindFirstChild("ClientKnifeProjectiles")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "ClientKnifeProjectiles"
+		folder.Parent = workspace
+	end
+	return folder
+end
+
+NetworkRouter:Listen("KnifeThrowBroadcast", function(data)
+	if type(data) ~= "table" then return end
+
+	local knifeModels = ReplicatedStorage:FindFirstChild("KnifeModels")
+	if not knifeModels then
+		warn("[KnifeController] KnifeModels folder not found in ReplicatedStorage")
+		return
+	end
+
+	local knifeModel = knifeModels:FindFirstChild(data.knifeName)
+	if not knifeModel then
+		warn("[KnifeController] Unknown knife model in broadcast: " .. tostring(data.knifeName))
+		return
+	end
+
+	local folder = getOrCreateClientFolder()
+	ProjectileFactory.spawnProjectile({
+		template = knifeModel,
+		directionVector = data.directionVector,
+		spawnCFrame = data.spawnCFrame,
+		parent = folder,
+		transparency = 0,
+	}, localPlayer, { folder }, nil)
+end)

@@ -115,3 +115,37 @@ Expected output: `N passed, 0 failed`. Any `SKIP:` lines mean a prerequisite (e.
 4. Move the model into `ReplicatedStorage.Maps`
 5. Add the name to `REGISTERED_MAPS` in `src/Shared/Map/Configs.lua`
 6. Run `MapValidator.test.lua` to confirm it passes
+
+---
+
+## Knife Model Selection
+
+Players can own multiple knife models and equip one at a time. At round start, the equipped knife is distributed to the player.
+
+### How Knife Models Are Stored
+
+Each knife variant is a `Tool` instance inside `ReplicatedStorage.KnifeModels`. The Tool must have a `Handle` BasePart child. A `Hitbox` Part is auto-created if missing.
+
+### How Equipped Knife Is Tracked
+
+`DataService` stores a `Knives` array per player. Each entry has `{ id, name, equipped }`. Only one knife can have `equipped = true` at a time.
+
+### API
+
+```lua
+DataService.AddKnife(player, knifeName)          -- adds knife to collection
+DataService.EquipKnife(player, knifeId)           -- equips knife by id, unequips all others
+DataService.GetEquippedKnifeName(player) -> string? -- returns equipped knife's name, or nil
+```
+
+### Resolution at Round Start
+
+`WeaponDistributor` queries `DataService.GetEquippedKnifeName(player)` and looks up the matching template by name in `ReplicatedStorage.KnifeModels`. If no knife is equipped or the name doesn't match any template, the first template in the folder is used as default.
+
+### Adding a New Knife Model: Checklist
+
+1. Create a `Tool` instance in Studio with a `Handle` BasePart child
+2. Name the Tool (e.g. `"Dagger"`) — this name is used for lookup
+3. Place it inside `ReplicatedStorage.KnifeModels`
+4. Give the knife to a player via `DataService.AddKnife(player, "Dagger")`
+5. Equip it via `DataService.EquipKnife(player, knifeId)`

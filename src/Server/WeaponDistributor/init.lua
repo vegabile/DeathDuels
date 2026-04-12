@@ -3,7 +3,8 @@ local WeaponModelValidator = require(ReplicatedStorage.WeaponModelValidator)
 
 local WeaponDistributor = {}
 
-local knifeTemplate: Tool? = nil
+local knifeTemplates: { [string]: Tool } = {}
+local defaultKnifeTemplate: Tool? = nil
 local gunTemplate: Tool? = nil
 
 local function ensureKnifeHitbox(tool: Tool)
@@ -57,11 +58,18 @@ local function ensureGunShootPoint(tool: Tool)
 	warn("[WeaponDistributor] No ShootPoint or ShootAttachment found on gun Handle — created one at Handle front. Verify position in Studio.")
 end
 
-function WeaponDistributor.init(knife: any, gun: any): boolean
-	local knifeOk, knifeErr = WeaponModelValidator.validateKnife(knife)
-	if not knifeOk then
-		warn(`[WeaponDistributor] Knife template invalid: {knifeErr}`)
+function WeaponDistributor.init(knives: { any }, gun: any): boolean
+	if #knives == 0 then
+		warn("[WeaponDistributor] No knife templates provided")
 		return false
+	end
+
+	for _, knife in knives do
+		local knifeOk, knifeErr = WeaponModelValidator.validateKnife(knife)
+		if not knifeOk then
+			warn(`[WeaponDistributor] Knife template invalid: {knifeErr}`)
+			return false
+		end
 	end
 
 	local gunOk, gunErr = WeaponModelValidator.validateGun(gun)
@@ -70,16 +78,21 @@ function WeaponDistributor.init(knife: any, gun: any): boolean
 		return false
 	end
 
-	ensureKnifeHitbox(knife)
-	ensureGunShootPoint(gun)
+	for i, knife in knives do
+		ensureKnifeHitbox(knife)
+		knifeTemplates[knife.Name] = knife
+		if i == 1 then
+			defaultKnifeTemplate = knife
+		end
+	end
 
-	knifeTemplate = knife
+	ensureGunShootPoint(gun)
 	gunTemplate = gun
 	return true
 end
 
-function WeaponDistributor.distributeToPlayer(player: Player)
-	if not knifeTemplate or not gunTemplate then
+function WeaponDistributor.distributeToPlayer(player: Player, knifeName: string?)
+	if not defaultKnifeTemplate or not gunTemplate then
 		warn(`[WeaponDistributor] Cannot distribute to {player.Name} — not initialized`)
 		return
 	end
@@ -90,7 +103,8 @@ function WeaponDistributor.distributeToPlayer(player: Player)
 		return
 	end
 
-	local knife = knifeTemplate:Clone()
+	local chosenTemplate = (knifeName and knifeTemplates[knifeName]) or defaultKnifeTemplate
+	local knife = chosenTemplate:Clone()
 	knife:SetAttribute("IsKnife", true)
 	knife.Parent = backpack
 
@@ -101,7 +115,8 @@ end
 
 --// Test-only: resets module state so tests can run in isolation
 function WeaponDistributor._reset()
-	knifeTemplate = nil
+	knifeTemplates = {}
+	defaultKnifeTemplate = nil
 	gunTemplate = nil
 end
 

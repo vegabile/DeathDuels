@@ -1,5 +1,9 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 local KnifeService = require(script.Parent)
+
+NetworkRouter:CreateRemoteEvent("KnifeThrowBroadcast")
 
 local function setupPlayer(player)
 	KnifeService.OnPlayerAdded(player)
