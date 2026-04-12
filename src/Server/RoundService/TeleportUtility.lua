@@ -6,22 +6,26 @@ local Configs = require(ReplicatedStorage.Round.Configs)
 local TeleportUtility = {}
 
 function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, roundResults: { any }, winningTeam: number?, disconnectedStats: { [string]: any }?)
-	local serializedStats = {}
+	local delta = {}
+
+	for player, state in playerStates do
+		local kills = state:GetStat("kills")
+		delta[tostring(player.UserId)] = {
+			coinsEarned = kills * Configs.COINS_PER_KILL,
+		}
+	end
 
 	if disconnectedStats then
 		for odUserId, data in disconnectedStats do
-			serializedStats[odUserId] = data
+			local kills = data.stats and data.stats.kills or 0
+			delta[odUserId] = {
+				coinsEarned = kills * Configs.COINS_PER_KILL,
+			}
 		end
 	end
 
-	for player, state in playerStates do
-		serializedStats[tostring(player.UserId)] = state:Serialize()
-	end
-
 	return {
-		roundResults = roundResults,
-		winningTeam = winningTeam,
-		playerStats = serializedStats,
+		delta = delta,
 	}
 end
 
