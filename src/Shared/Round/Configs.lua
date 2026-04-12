@@ -22,13 +22,14 @@ return {
 	RESPAWN_DELAY = 3,
 	CHARACTER_LOAD_TIMEOUT = 10,
 
-	LOBBY_PLACE_ID = 0,
+	LOBBY_PLACE_ID = 92562692732027,
 	RETRY_COUNT = 3,
 	EXPONENTIAL_BACKOFF_BASE = 1,
 	EXPONENTIAL_BACKOFF_EXPONENT = 2,
 
 	ROUNDS_TO_WIN = 5,
 	MAX_ROUNDS = 9,
+	COINS_PER_KILL = 10,
 
 	INITIAL_SPAWN_PART = "InitialSpawnBox",
 
@@ -40,9 +41,12 @@ return {
 	GAME_MODES = {
 		{ name = "1v1", playersPerTeam = 1 },
 		{ name = "2v2", playersPerTeam = 2 },
+		{ name = "3v3", playersPerTeam = 3 },
+		{ name = "4v4", playersPerTeam = 4 },
+		{ name = "5v5", playersPerTeam = 5 },
 	},
 
-	MAX_PLAYERS_PER_TEAM = 2,
+	MAX_PLAYERS_PER_TEAM = 5,
 
 	LEGAL_TRANSITIONS = {
 		WaitingForPlayers = { "AssigningTeams", "Aborted" },
