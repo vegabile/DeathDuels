@@ -56,8 +56,13 @@ KICK_REASONS = {
 **Change — `TeleportDataValidator.validate`** now returns `(ok: boolean, err: string?, sanitized: table?)`. Semantics:
 
 - Missing or wrong-type `teamOnePlayers`, `teamTwoPlayers`, `mapName`, `queueType`, or `timestamp` → `ok = false`, `sanitized = nil`.
-- Everything critical valid but `loadouts` missing or non-table → `sanitized.loadouts = {}`, then populated.
-- For every player in both team rosters, if `sanitized.loadouts[tostring(userId)]` is missing, fill it with a per-player clone of `Configs.DEFAULT_LOADOUT`:
+- Loadouts are **non-authoritative**. The validator fills every missing field from `Configs.DEFAULT_LOADOUT`. No half-validate behavior — post-sanitization, every player has a fully-populated loadout.
+- Rules:
+    - If `sanitized.loadouts` is missing or non-table → initialize to `{}`.
+    - For every player in both team rosters, if `sanitized.loadouts[tostring(userId)]` is missing → create from `cloneDefaultLoadout()`.
+    - If an entry exists but `knifeName` is nil → fill from `DEFAULT_LOADOUT.knifeName`.
+    - If an entry exists but `gunName` is nil → fill from `DEFAULT_LOADOUT.gunName`.
+- Always clone so the config constant can never be mutated:
 
 ```lua
 local function cloneDefaultLoadout()
@@ -66,9 +71,25 @@ local function cloneDefaultLoadout()
         gunName = Configs.DEFAULT_LOADOUT.gunName,
     }
 end
-```
 
-- If a loadout entry exists but has `nil` fields, leave them alone. A partial loadout is a caller decision, not a defect.
+local function fillLoadouts(sanitized)
+    if type(sanitized.loadouts) ~= "table" then
+        sanitized.loadouts = {}
+    end
+    local function fillFor(entry)
+        local key = tostring(entry.UserId)
+        local loadout = sanitized.loadouts[key]
+        if not loadout then
+            sanitized.loadouts[key] = cloneDefaultLoadout()
+            return
+        end
+        if loadout.knifeName == nil then loadout.knifeName = Configs.DEFAULT_LOADOUT.knifeName end
+        if loadout.gunName == nil then loadout.gunName = Configs.DEFAULT_LOADOUT.gunName end
+    end
+    for _, entry in sanitized.teamOnePlayers do fillFor(entry) end
+    for _, entry in sanitized.teamTwoPlayers do fillFor(entry) end
+end
+```
 
 **Change — `src/Server/RoundService/executor.server.lua`** real-data branch:
 
@@ -130,7 +151,9 @@ local function loadAndPositionPlayers(system)
             local spawnPart = spawns[((i - 1) % #spawns) + 1]
 
             task.spawn(function()
-                local ok = pcall(function()
+                local deadline = os.clock() + Configs.CHARACTER_LOAD_TIMEOUT
+
+                pcall(function()
                     if not player.Character
                         or not player.Character:FindFirstChild("Humanoid")
                         or player.Character.Humanoid.Health <= 0
@@ -139,13 +162,13 @@ local function loadAndPositionPlayers(system)
                     end
                 end)
 
+                --// Wait for the character model itself (may already exist).
                 local character = player.Character
-                if ok and not character and player.Parent then
+                if not character and player.Parent then
                     local result
                     local conn = player.CharacterAdded:Connect(function(c)
                         result = c
                     end)
-                    local deadline = os.clock() + Configs.CHARACTER_LOAD_TIMEOUT
                     while not result and os.clock() < deadline and player.Parent do
                         task.wait()
                     end
@@ -153,7 +176,17 @@ local function loadAndPositionPlayers(system)
                     character = result
                 end
 
-                local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+                --// Wait for HumanoidRootPart to replicate, bounded by the
+                --// remaining deadline. This is the real "character is usable"
+                --// signal — CharacterAdded can fire before HRP is available.
+                local rootPart
+                if character and player.Parent then
+                    local remainingTime = deadline - os.clock()
+                    if remainingTime > 0 then
+                        rootPart = character:WaitForChild("HumanoidRootPart", remainingTime)
+                    end
+                end
+
                 if rootPart then
                     rootPart.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
                     print(`[Round] {player.Name} → Team {teamNum} → {spawnPart.Name}`)
@@ -243,10 +276,10 @@ end
 return WeaponSystemState
 ```
 
-**Change — `src/Server/WeaponDistributor/executor.server.lua`** — collect-then-fail validator:
+**Change — `src/Server/WeaponDistributor/executor.server.lua`** — collect-then-fail validator; returns the full `guns` list so every tool in `GunModels` is validated and kept, not just the first:
 
 ```lua
-local function validateWeapons(): (boolean, { string }?, { Tool }?, Tool?)
+local function validateWeapons(): (boolean, { string }?, { Tool }?, { Tool }?)
     local problems = {}
     local knives = {}
     local guns = {}
@@ -292,10 +325,10 @@ local function validateWeapons(): (boolean, { string }?, { Tool }?, Tool?)
     if #problems > 0 then
         return false, problems, nil, nil
     end
-    return true, nil, knives, guns[1]
+    return true, nil, knives, guns
 end
 
-local ok, problems, knives, gun = validateWeapons()
+local ok, problems, knives, guns = validateWeapons()
 if not ok then
     warn("[WeaponDistributor] CRITICAL — weapon validation failed:")
     for _, msg in problems do
@@ -305,7 +338,7 @@ if not ok then
     return
 end
 
-local initOk = WeaponDistributor.init(knives, gun)
+local initOk = WeaponDistributor.init(knives, guns)
 if not initOk then
     warn("[WeaponDistributor] CRITICAL — init failed")
     ServerEventBus:Fire("WeaponSystemReady", false)
@@ -315,7 +348,97 @@ end
 ServerEventBus:Fire("WeaponSystemReady", true)
 ```
 
-The existing `distribute(player)` wiring below this block is untouched.
+**Change — `src/Server/WeaponDistributor/init.lua`** — mirror the knife pipeline for guns so every validated gun is retained and selectable by name, and the pre-existing loadout-gunName-is-ignored bug is fixed:
+
+```lua
+local knifeTemplates: { [string]: Tool } = {}
+local defaultKnifeTemplate: Tool? = nil
+local gunTemplates: { [string]: Tool } = {}
+local defaultGunTemplate: Tool? = nil
+
+function WeaponDistributor.init(knives: { Tool }, guns: { Tool }): boolean
+    if #knives == 0 then
+        warn("[WeaponDistributor] No knife templates provided")
+        return false
+    end
+    if #guns == 0 then
+        warn("[WeaponDistributor] No gun templates provided")
+        return false
+    end
+
+    for _, knife in knives do
+        local knifeOk, knifeErr = WeaponModelValidator.validateKnife(knife)
+        if not knifeOk then
+            warn(`[WeaponDistributor] Knife template invalid: {knifeErr}`)
+            return false
+        end
+    end
+    for _, gun in guns do
+        local gunOk, gunErr = WeaponModelValidator.validateGun(gun)
+        if not gunOk then
+            warn(`[WeaponDistributor] Gun template invalid: {gunErr}`)
+            return false
+        end
+    end
+
+    for i, knife in knives do
+        ensureKnifeHitbox(knife)
+        knifeTemplates[knife.Name] = knife
+        if i == 1 then defaultKnifeTemplate = knife end
+    end
+    for i, gun in guns do
+        ensureGunShootPoint(gun)
+        gunTemplates[gun.Name] = gun
+        if i == 1 then defaultGunTemplate = gun end
+    end
+    return true
+end
+
+function WeaponDistributor.distributeToPlayer(player: Player, knifeName: string?, gunName: string?)
+    if not defaultKnifeTemplate or not defaultGunTemplate then
+        warn(`[WeaponDistributor] Cannot distribute to {player.Name} — not initialized`)
+        return
+    end
+
+    local backpack = player:FindFirstChildWhichIsA("Backpack")
+    if not backpack then
+        warn(`[WeaponDistributor] No Backpack found for {player.Name}`)
+        return
+    end
+
+    local knifeTemplate = (knifeName and knifeTemplates[knifeName]) or defaultKnifeTemplate
+    local gunTemplate = (gunName and gunTemplates[gunName]) or defaultGunTemplate
+
+    local knife = knifeTemplate:Clone()
+    knife:SetAttribute("IsKnife", true)
+    knife.Parent = backpack
+
+    local gun = gunTemplate:Clone()
+    gun:SetAttribute("IsGun", true)
+    gun.Parent = backpack
+end
+
+function WeaponDistributor._reset()
+    knifeTemplates = {}
+    defaultKnifeTemplate = nil
+    gunTemplates = {}
+    defaultGunTemplate = nil
+end
+```
+
+**Change — `src/Server/WeaponDistributor/executor.server.lua`** `distribute` helper — pass both loadout names through:
+
+```lua
+local function distribute(player: Player)
+    if not _roundActive then return end
+    local loadout = TeleportMetadataService.GetLoadout(player.UserId)
+    local knifeName = loadout and loadout.knifeName
+    local gunName = loadout and loadout.gunName
+    WeaponDistributor.distributeToPlayer(player, knifeName, gunName)
+end
+```
+
+Since the validator fills every loadout field post-sanitization, `knifeName` and `gunName` will always be non-nil by the time this runs, and the `or default*Template` fallback is purely defensive.
 
 **Change — `src/Server/RoundService/RoundOrchestrator.lua`** — add the require at the top of the file alongside existing requires:
 
@@ -354,7 +477,8 @@ end
 | `src/Server/RoundService/init.lua` | `RoundSystem.new(metadata, positioningDoneEvent)` stores event |
 | `src/Server/RoundService/RoundOrchestrator.lua` | Bounded positioning, weapon-ready gate in `enterAssigningTeams` |
 | `src/Server/RoundService/TeleportUtility.lua` | Kick all players on retry exhaustion |
-| `src/Server/WeaponDistributor/executor.server.lua` | Collect-then-fail validator, `WeaponSystemReady` signal |
+| `src/Server/WeaponDistributor/executor.server.lua` | Collect-then-fail validator returning full guns list; `WeaponSystemReady` signal; pass `gunName` through |
+| `src/Server/WeaponDistributor/init.lua` | `init(knives, guns)` signature; `gunTemplates` dict + `defaultGunTemplate`; `distributeToPlayer` takes `gunName` |
 | `src/Server/WeaponSystemState.lua` | New module holding ready flag, `IsReady()` with 5s startup wait |
 
 ## Testing
