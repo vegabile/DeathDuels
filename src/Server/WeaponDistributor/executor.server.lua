@@ -4,6 +4,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local WeaponDistributor = require(script.Parent)
 local ServerEventBus = require(ServerScriptService.ServerEventBus)
 local RoundConfigs = require(ReplicatedStorage.Round.Configs)
+local TeleportMetadataService = require(ServerScriptService.RoundService.TeleportMetadataService)
 
 local _roundActive = false
 ServerEventBus:Connect("RoundStateChanged", function(state)
@@ -22,8 +23,14 @@ if not gunModels then
 	return
 end
 
-local knife = knifeModels:FindFirstChildWhichIsA("Tool")
-if not knife then
+local knives = {}
+for _, child in knifeModels:GetChildren() do
+	if child:IsA("Tool") then
+		table.insert(knives, child)
+	end
+end
+
+if #knives == 0 then
 	warn("[WeaponDistributor] No Tool found inside KnifeModels")
 	return
 end
@@ -34,7 +41,7 @@ if not gun then
 	return
 end
 
-local ok = WeaponDistributor.init(knife, gun)
+local ok = WeaponDistributor.init(knives, gun)
 if not ok then
 	warn("[WeaponDistributor] Initialization failed — weapon distribution disabled")
 	return
@@ -42,7 +49,9 @@ end
 
 local function distribute(player: Player)
 	if not _roundActive then return end
-	WeaponDistributor.distributeToPlayer(player)
+	local loadout = TeleportMetadataService.GetLoadout(player.UserId)
+	local knifeName = loadout and loadout.knifeName
+	WeaponDistributor.distributeToPlayer(player, knifeName)
 end
 
 Players.PlayerAdded:Connect(function(player)
@@ -51,7 +60,6 @@ Players.PlayerAdded:Connect(function(player)
 	end)
 end)
 
---// Cover players already in-game when this script runs (Studio testing)
 for _, player in Players:GetPlayers() do
 	player.CharacterAdded:Connect(function()
 		distribute(player)
