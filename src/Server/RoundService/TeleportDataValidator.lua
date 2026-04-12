@@ -40,6 +40,9 @@ function TeleportDataValidator.validate(teleportData: any): (boolean, string?)
 	end
 	ok, err = MapValidator.validate(teleportData.mapName)
 	if not ok then return false, err end
+	if type(teleportData.loadouts) ~= "table" then
+		return false, "loadouts is not a table"
+	end
 	if type(teleportData.timestamp) ~= "number" then
 		return false, "timestamp is not a number"
 	end
