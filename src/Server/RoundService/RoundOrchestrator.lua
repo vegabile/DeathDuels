@@ -3,6 +3,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 local Configs = require(ReplicatedStorage.Round.Configs)
 local ServerEventBus = require(ServerScriptService.ServerEventBus)
+local WeaponSystemState = require(ServerScriptService.WeaponSystemState)
 
 local PlayerState = require(script.Parent.PlayerState)
 local TeamState = require(script.Parent.TeamState)
@@ -129,6 +130,12 @@ local function enterAssigningTeams(system)
 	if system._waitTask then
 		task.cancel(system._waitTask)
 		system._waitTask = nil
+	end
+
+	if not WeaponSystemState.IsReady() then
+		warn("[Round] Weapon system not ready — aborting round")
+		system:_transition(Configs.GAME_STATES.Aborted)
+		return
 	end
 
 	local mapName = TeleportMetadataService.GetMapName()
