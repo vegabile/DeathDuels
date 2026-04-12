@@ -5,6 +5,9 @@ local WeaponDistributor = require(script.Parent)
 local ServerEventBus = require(ServerScriptService.ServerEventBus)
 local RoundConfigs = require(ReplicatedStorage.Round.Configs)
 local TeleportMetadataService = require(ServerScriptService.RoundService.TeleportMetadataService)
+--// Require for side effect: ensures WeaponSystemState's listener is connected
+--// before this executor fires WeaponSystemReady, preventing a startup race.
+local _ = require(ServerScriptService.WeaponSystemState)
 
 local _roundActive = false
 ServerEventBus:Connect("RoundStateChanged", function(state)
