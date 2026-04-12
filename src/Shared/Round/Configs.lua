@@ -20,7 +20,18 @@ return {
 	ROUND_INTERMISSION_DURATION = 5,
 	GAME_OVER_DURATION = 8,
 	RESPAWN_DELAY = 3,
-	CHARACTER_LOAD_TIMEOUT = 10,
+	CHARACTER_LOAD_TIMEOUT = 7,
+
+	DEFAULT_LOADOUT = {
+		knifeName = "Default",  --// placeholder — user will edit post-approval
+		gunName = "Default",
+	},
+
+	KICK_REASONS = {
+		InvalidTeleportData = "Invalid match data. Returning to lobby.",
+		CharacterLoadTimeout = "Character failed to load in time.",
+		TeleportOutFailed = "Unable to return to lobby. Please rejoin.",
+	},
 
 	LOBBY_PLACE_ID = 92562692732027,
 	RETRY_COUNT = 3,
