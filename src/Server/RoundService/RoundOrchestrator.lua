@@ -38,6 +38,7 @@ end
 local function loadAndPositionPlayers(system)
 	local spawnGroups = getSpawnAssignment(system)
 	local remaining = 0
+	local doneEvent = system._positioningDoneEvent
 
 	for teamNum, spawns in spawnGroups do
 		local players = system._teamPlayers[teamNum]
@@ -51,31 +52,65 @@ local function loadAndPositionPlayers(system)
 				continue
 			end
 			remaining += 1
-
 			local spawnPart = spawns[((i - 1) % #spawns) + 1]
 
 			task.spawn(function()
-				if not player.Character or not player.Character:FindFirstChild("Humanoid") or player.Character.Humanoid.Health <= 0 then
-					player:LoadCharacter()
+				local deadline = os.clock() + Configs.CHARACTER_LOAD_TIMEOUT
+
+				pcall(function()
+					if not player.Character
+						or not player.Character:FindFirstChild("Humanoid")
+						or player.Character.Humanoid.Health <= 0
+					then
+						player:LoadCharacter()
+					end
+				end)
+
+				--// Wait for the character model itself (may already exist).
+				local character = player.Character
+				if not character and player.Parent then
+					local result
+					local conn = player.CharacterAdded:Connect(function(c)
+						result = c
+					end)
+					while not result and os.clock() < deadline and player.Parent do
+						task.wait()
+					end
+					conn:Disconnect()
+					character = result
 				end
 
-				local character = player.Character or player.CharacterAdded:Wait()
-				local rootPart = character:WaitForChild("HumanoidRootPart", Configs.CHARACTER_LOAD_TIMEOUT)
+				--// Wait for HumanoidRootPart to replicate within the remaining
+				--// deadline. CharacterAdded can fire before HRP is available,
+				--// so the HRP wait is the real "usable character" signal.
+				local rootPart
+				if character and player.Parent then
+					local remainingTime = deadline - os.clock()
+					if remainingTime > 0 then
+						rootPart = character:WaitForChild("HumanoidRootPart", remainingTime)
+					end
+				end
+
 				if rootPart then
 					rootPart.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
 					print(`[Round] {player.Name} → Team {teamNum} → {spawnPart.Name}`)
 				else
-					warn(`[Round] Character load timed out for {player.Name}`)
+					warn(`[Round] Character load timed out for {player.Name} — kicking`)
+					if player.Parent then
+						player:Kick(Configs.KICK_REASONS.CharacterLoadTimeout)
+					end
 				end
 
 				remaining -= 1
+				if remaining == 0 then
+					doneEvent:Fire()
+				end
 			end)
 		end
 	end
 
-	--// Wait for all players to finish loading
-	while remaining > 0 do
-		task.wait()
+	if remaining > 0 then
+		doneEvent.Event:Wait()
 	end
 end
 
