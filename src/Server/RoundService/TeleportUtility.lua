@@ -73,6 +73,11 @@ function TeleportUtility.teleportPlayersWithRetry(players: { Player }, placeId: 
 			task.wait(delay)
 		else
 			warn(`[TeleportUtility] All {Configs.RETRY_COUNT} attempts exhausted: {err}`)
+			for _, player in players do
+				if player.Parent then
+					player:Kick(Configs.KICK_REASONS.TeleportOutFailed)
+				end
+			end
 			return false, err
 		end
 	end
