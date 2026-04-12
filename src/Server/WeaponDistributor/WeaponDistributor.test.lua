@@ -156,7 +156,7 @@ do
 	local validGun = makeTool("GunForInitTest")
 	addHandle(validGun)
 
-	local ok = WeaponDistributor.init({badKnife}, validGun)
+	local ok = WeaponDistributor.init({badKnife}, {validGun})
 	check("init invalid knife → false", not ok)
 
 	local validKnife = makeTool("KnifeForInitTest")
@@ -164,7 +164,7 @@ do
 	local badGun = track(Instance.new("Part"))
 	badGun.Parent = workspace
 
-	local ok2 = WeaponDistributor.init({validKnife}, badGun)
+	local ok2 = WeaponDistributor.init({validKnife}, {badGun})
 	check("init invalid gun → false", not ok2)
 
 	cleanAll()
@@ -182,7 +182,7 @@ do
 	local gunHandle = addHandle(gun)
 	addAttachment(gunHandle, "ShootPoint")
 
-	local ok = WeaponDistributor.init({knifeNoHitbox}, gun)
+	local ok = WeaponDistributor.init({knifeNoHitbox}, {gun})
 	check("init knife without Hitbox → true", ok)
 
 	local hitbox = knifeNoHitbox:FindFirstChild("Hitbox")
@@ -211,7 +211,7 @@ do
 	local gunHandle2 = addHandle(gun2)
 	addAttachment(gunHandle2, "ShootPoint")
 
-	WeaponDistributor.init({knifeWithHitbox}, gun2)
+	WeaponDistributor.init({knifeWithHitbox}, {gun2})
 	local hitboxCount = 0
 	for _, child in knifeWithHitbox:GetChildren() do
 		if child.Name == "Hitbox" then hitboxCount += 1 end
@@ -234,7 +234,7 @@ do
 	gHandle.Size = Vector3.new(0.2, 1.0, 1.5)
 	addAttachment(gHandle, "ShootAttachment")
 
-	WeaponDistributor.init({knife}, gunWithAttach)
+	WeaponDistributor.init({knife}, {gunWithAttach})
 	check("ShootAttachment renamed to ShootPoint", gHandle:FindFirstChild("ShootPoint") ~= nil)
 	check("ShootAttachment no longer exists after rename", gHandle:FindFirstChild("ShootAttachment") == nil)
 
@@ -251,7 +251,7 @@ do
 	local gHandle2 = addHandle(gunNoAttach)
 	gHandle2.Size = Vector3.new(0.2, 1.0, 1.5)
 
-	WeaponDistributor.init({knife2}, gunNoAttach)
+	WeaponDistributor.init({knife2}, {gunNoAttach})
 	local sp = gHandle2:FindFirstChild("ShootPoint")
 	check("ShootPoint created when absent", sp ~= nil)
 	check("ShootPoint is Attachment", sp ~= nil and sp:IsA("Attachment"))
@@ -270,7 +270,7 @@ do
 	local original = addAttachment(gHandle3, "ShootPoint")
 	original.Position = Vector3.new(1, 2, 3)
 
-	WeaponDistributor.init({knife3}, gunWithShootPoint)
+	WeaponDistributor.init({knife3}, {gunWithShootPoint})
 	local sp3 = gHandle3:FindFirstChild("ShootPoint")
 	check("ShootPoint unchanged when already present", sp3 == original)
 	check("ShootPoint position preserved", sp3 ~= nil and sp3.Position == Vector3.new(1, 2, 3))
@@ -299,7 +299,7 @@ do
 	local gun = makeTool("GunForDistTest")
 	local gh = addHandle(gun)
 	addAttachment(gh, "ShootPoint")
-	WeaponDistributor.init({knife}, gun)
+	WeaponDistributor.init({knife}, {gun})
 
 	local noBackpackPlayer = makePlayerNoBackpack()
 	local ok = pcall(WeaponDistributor.distributeToPlayer, noBackpackPlayer)
@@ -316,7 +316,7 @@ do
 	local gun = makeTool("GunForDistTest2")
 	local gh = addHandle(gun)
 	addAttachment(gh, "ShootPoint")
-	WeaponDistributor.init({knife}, gun)
+	WeaponDistributor.init({knife}, {gun})
 
 	local mockPlayer, backpack = makePlayerWithBackpack()
 	WeaponDistributor.distributeToPlayer(mockPlayer)
@@ -368,7 +368,7 @@ do
 	local gh = addHandle(gun)
 	addAttachment(gh, "ShootPoint")
 
-	local ok = WeaponDistributor.init({knifeA, knifeB}, gun)
+	local ok = WeaponDistributor.init({knifeA, knifeB}, {gun})
 	check("init with two knives → true", ok)
 
 	--// Distribute with specific knife name
@@ -400,7 +400,7 @@ do
 	local gh = addHandle(gun)
 	addAttachment(gh, "ShootPoint")
 
-	WeaponDistributor.init({knifeA, knifeB}, gun)
+	WeaponDistributor.init({knifeA, knifeB}, {gun})
 
 	--// Distribute with unknown name → falls back to default (first)
 	local mockPlayer, backpack = makePlayerWithBackpack()
@@ -415,6 +415,64 @@ do
 	end
 	check("Fallback knife distributed for unknown name", distributedKnife ~= nil)
 	check("Fallback knife is first template (KnifeAlpha2)", distributedKnife ~= nil and distributedKnife.Name == "KnifeAlpha2")
+
+	cleanAll()
+end
+
+-- ─── Gun selection by name ────────────────────────────────────────────────────
+
+do
+	WeaponDistributor._reset()
+
+	local knife = makeTool("KnifeForGunSelect")
+	addHandle(knife)
+
+	local gunA = makeTool("GunAlpha")
+	local gunAHandle = addHandle(gunA)
+	gunAHandle.Size = Vector3.new(0.2, 1.0, 1.5)
+	addAttachment(gunAHandle, "ShootPoint")
+
+	local gunB = makeTool("GunBeta")
+	local gunBHandle = addHandle(gunB)
+	gunBHandle.Size = Vector3.new(0.2, 1.0, 1.5)
+	addAttachment(gunBHandle, "ShootPoint")
+
+	local ok = WeaponDistributor.init({knife}, {gunA, gunB})
+	check("init multi-gun → true", ok)
+
+	local mockPlayer, backpack = makePlayerWithBackpack()
+	WeaponDistributor.distributeToPlayer(mockPlayer, nil, "GunBeta")
+
+	local delivered
+	for _, child in backpack:GetChildren() do
+		if child:GetAttribute("IsGun") then delivered = child end
+	end
+	check("distributeToPlayer picks gun by name", delivered ~= nil and delivered.Name == "GunBeta")
+
+	cleanAll()
+end
+
+do
+	WeaponDistributor._reset()
+
+	local knife = makeTool("KnifeForGunFallback")
+	addHandle(knife)
+
+	local gunA = makeTool("GunAlpha2")
+	local gunAHandle = addHandle(gunA)
+	gunAHandle.Size = Vector3.new(0.2, 1.0, 1.5)
+	addAttachment(gunAHandle, "ShootPoint")
+
+	WeaponDistributor.init({knife}, {gunA})
+
+	local mockPlayer, backpack = makePlayerWithBackpack()
+	WeaponDistributor.distributeToPlayer(mockPlayer, nil, "NonExistentGun")
+
+	local delivered
+	for _, child in backpack:GetChildren() do
+		if child:GetAttribute("IsGun") then delivered = child end
+	end
+	check("unknown gunName → falls back to default", delivered ~= nil and delivered.Name == "GunAlpha2")
 
 	cleanAll()
 end

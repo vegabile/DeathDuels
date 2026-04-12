@@ -5,7 +5,8 @@ local WeaponDistributor = {}
 
 local knifeTemplates: { [string]: Tool } = {}
 local defaultKnifeTemplate: Tool? = nil
-local gunTemplate: Tool? = nil
+local gunTemplates: { [string]: Tool } = {}
+local defaultGunTemplate: Tool? = nil
 
 local function ensureKnifeHitbox(tool: Tool)
 	if tool:FindFirstChild("Hitbox") then return end
@@ -58,9 +59,13 @@ local function ensureGunShootPoint(tool: Tool)
 	warn("[WeaponDistributor] No ShootPoint or ShootAttachment found on gun Handle — created one at Handle front. Verify position in Studio.")
 end
 
-function WeaponDistributor.init(knives: { any }, gun: any): boolean
+function WeaponDistributor.init(knives: { Tool }, guns: { Tool }): boolean
 	if #knives == 0 then
 		warn("[WeaponDistributor] No knife templates provided")
+		return false
+	end
+	if #guns == 0 then
+		warn("[WeaponDistributor] No gun templates provided")
 		return false
 	end
 
@@ -71,28 +76,29 @@ function WeaponDistributor.init(knives: { any }, gun: any): boolean
 			return false
 		end
 	end
-
-	local gunOk, gunErr = WeaponModelValidator.validateGun(gun)
-	if not gunOk then
-		warn(`[WeaponDistributor] Gun template invalid: {gunErr}`)
-		return false
+	for _, gun in guns do
+		local gunOk, gunErr = WeaponModelValidator.validateGun(gun)
+		if not gunOk then
+			warn(`[WeaponDistributor] Gun template invalid: {gunErr}`)
+			return false
+		end
 	end
 
 	for i, knife in knives do
 		ensureKnifeHitbox(knife)
 		knifeTemplates[knife.Name] = knife
-		if i == 1 then
-			defaultKnifeTemplate = knife
-		end
+		if i == 1 then defaultKnifeTemplate = knife end
 	end
-
-	ensureGunShootPoint(gun)
-	gunTemplate = gun
+	for i, gun in guns do
+		ensureGunShootPoint(gun)
+		gunTemplates[gun.Name] = gun
+		if i == 1 then defaultGunTemplate = gun end
+	end
 	return true
 end
 
-function WeaponDistributor.distributeToPlayer(player: Player, knifeName: string?)
-	if not defaultKnifeTemplate or not gunTemplate then
+function WeaponDistributor.distributeToPlayer(player: Player, knifeName: string?, gunName: string?)
+	if not defaultKnifeTemplate or not defaultGunTemplate then
 		warn(`[WeaponDistributor] Cannot distribute to {player.Name} — not initialized`)
 		return
 	end
@@ -103,8 +109,10 @@ function WeaponDistributor.distributeToPlayer(player: Player, knifeName: string?
 		return
 	end
 
-	local chosenTemplate = (knifeName and knifeTemplates[knifeName]) or defaultKnifeTemplate
-	local knife = chosenTemplate:Clone()
+	local knifeTemplate = (knifeName and knifeTemplates[knifeName]) or defaultKnifeTemplate
+	local gunTemplate = (gunName and gunTemplates[gunName]) or defaultGunTemplate
+
+	local knife = knifeTemplate:Clone()
 	knife:SetAttribute("IsKnife", true)
 	knife.Parent = backpack
 
@@ -117,7 +125,8 @@ end
 function WeaponDistributor._reset()
 	knifeTemplates = {}
 	defaultKnifeTemplate = nil
-	gunTemplate = nil
+	gunTemplates = {}
+	defaultGunTemplate = nil
 end
 
 return WeaponDistributor
