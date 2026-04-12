@@ -10,6 +10,11 @@ local TeleportDataValidator = require(script.Parent.TeleportDataValidator)
 
 local roundSystem = nil
 
+local ServerStorage = game:GetService("ServerStorage")
+--// PLACEHOLDER PATH — user will relocate this BindableEvent post-approval.
+local positioningDoneEvent =
+	ServerStorage:WaitForChild("RoundEvents"):WaitForChild("PositioningDone")
+
 local function buildTemplateTeleportData(player: Player)
 	return {
 		teamOnePlayers = { { UserId = player.UserId, Name = player.Name } },
@@ -32,24 +37,21 @@ local function setupPlayer(player: Player)
 		teleportData = buildTemplateTeleportData(player)
 	else
 		local joinData = player:GetJoinData()
-		teleportData = joinData and joinData.TeleportData
+		local rawData = joinData and joinData.TeleportData
 
-		if not teleportData then
-			warn(`[Round] No teleport data for {player.Name}`)
-			return
-		end
-
-		local ok, err = TeleportDataValidator.validate(teleportData)
+		local ok, err, sanitized = TeleportDataValidator.validate(rawData)
 		if not ok then
 			warn(`[Round] Invalid teleport data for {player.Name}: {err}`)
+			player:Kick(Configs.KICK_REASONS.InvalidTeleportData)
 			return
 		end
+		teleportData = sanitized
 	end
 
 	if not roundSystem then
 		local expected = #teleportData.teamOnePlayers + #teleportData.teamTwoPlayers
 		print(`[Round] Creating RoundSystem — map: {teleportData.mapName}, expecting {expected} player(s)`)
-		roundSystem = RoundService.new(teleportData)
+		roundSystem = RoundService.new(teleportData, positioningDoneEvent)
 	end
 
 	roundSystem:RegisterPlayer(player)
