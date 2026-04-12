@@ -16,12 +16,13 @@ local TeleportMetadataService = require(script.TeleportMetadataService)
 local RoundSystem = {}
 RoundSystem.__index = RoundSystem
 
-function RoundSystem.new(metadata: TeleportMetadata)
+function RoundSystem.new(metadata: TeleportMetadata, positioningDoneEvent: BindableEvent)
 	TeleportMetadataService.Initialize(metadata)
 
 	local self = setmetatable({}, RoundSystem)
 
 	self._metadata = metadata
+	self._positioningDoneEvent = positioningDoneEvent
 	self._expectedPlayerCount = #metadata.teamOnePlayers + #metadata.teamTwoPlayers
 	self._pendingPlayers = {} :: { Player }
 	self._stateMachine = RoundStateMachine.new()
