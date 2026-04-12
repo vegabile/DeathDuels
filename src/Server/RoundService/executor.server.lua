@@ -17,6 +17,10 @@ local function buildTemplateTeleportData(player: Player)
 		queueType = 1,
 		mapName = "TestMap",
 		timestamp = os.time(),
+		loadouts = {
+			[tostring(player.UserId)] = { knifeName = nil, gunName = nil },
+			["0"] = { knifeName = nil, gunName = nil },
+		},
 	}
 end
 
