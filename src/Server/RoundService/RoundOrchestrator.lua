@@ -329,6 +329,48 @@ local function enterAssigningTeams(system)
 	system:_transition(Configs.GAME_STATES.PreparingPlayers)
 end
 
+local function allRosterReady(roster: { Player }): boolean
+	for _, player in roster do
+		if not PlayerReadiness.isComplete(player) then return false end
+	end
+	return true
+end
+
+local function enterPreparingPlayers(system)
+	print(`[Round] State: PreparingPlayers — grace {Configs.READINESS_GRACE_FIRST_ROUND}s for {#system._roundRoster} player(s)`)
+	local deadline = os.clock() + Configs.READINESS_GRACE_FIRST_ROUND
+
+	--// Spawn per-player loads. Each task is bounded internally by
+	--// loadCharacterAndRecord's CHAR_FACT_WAIT_TIMEOUT. Tasks do NOT call
+	--// applySkipped on their own failure — the post-wait cleanup loop below
+	--// is the single site for force-skip.
+	for _, player in system._roundRoster do
+		task.spawn(function()
+			loadCharacterAndRecord(player, Configs.READINESS_GRACE_FIRST_ROUND)
+		end)
+	end
+
+	--// Global event-driven wait. Yields on ChangedSignal OR deadline.
+	while true do
+		if allRosterReady(system._roundRoster) then break end
+		local timeLeft = deadline - os.clock()
+		if timeLeft <= 0 then break end
+		PlayerReadiness.waitForChange(timeLeft)
+		if system._stateMachine:GetState() ~= Configs.GAME_STATES.PreparingPlayers then return end
+	end
+
+	--// Deadline reached or all ready. Force-skip any incomplete player NOW,
+	--// synchronously applying physical side effects.
+	for _, player in system._roundRoster do
+		if not PlayerReadiness.isComplete(player) then
+			warn(`[Round] {player.Name} incomplete after PreparingPlayers grace: {table.concat(PlayerReadiness.missingFacts(player), ", ")}`)
+			applySkipped(system, player, system._playerStates[player])
+		end
+	end
+
+	system:_transition(Configs.GAME_STATES.RoundActive)
+end
+
 local function enterRoundActive(system)
 	system._roundNumber += 1
 	print(`[Round] State: RoundActive — Round {system._roundNumber} | {Configs.ROUND_DURATION}s`)
@@ -454,6 +496,7 @@ end
 local handlers = {
 	[Configs.GAME_STATES.WaitingForPlayers] = enterWaitingForPlayers,
 	[Configs.GAME_STATES.AssigningTeams] = enterAssigningTeams,
+	[Configs.GAME_STATES.PreparingPlayers] = enterPreparingPlayers,
 	[Configs.GAME_STATES.RoundActive] = enterRoundActive,
 	[Configs.GAME_STATES.RoundIntermission] = enterRoundIntermission,
 	[Configs.GAME_STATES.GameOver] = enterGameOver,
