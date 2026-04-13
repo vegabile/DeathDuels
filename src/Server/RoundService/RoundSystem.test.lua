@@ -91,6 +91,17 @@ do
 	check("PlayerState: Unlock allows SetAlive", ps.status == Configs.PLAYER_STATUSES.Dead)
 end
 
+do
+	local p = mockPlayer("Carol", 3)
+	local ps = PlayerState.new(p, 1)
+
+	check("PlayerState: positionedThisRound defaults to false", ps.positionedThisRound == false)
+
+	ps.positionedThisRound = true
+	ps:Reset()
+	check("PlayerState: Reset clears positionedThisRound", ps.positionedThisRound == false)
+end
+
 -- ─── TeamState ────────────────────────────────────────────────────────────────
 
 do

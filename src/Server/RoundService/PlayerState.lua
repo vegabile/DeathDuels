@@ -16,6 +16,7 @@ function PlayerState.new(player: Player, teamNumber: number)
 		status = Configs.PLAYER_STATUSES.Alive,
 		isInGame = true,
 		stats = stats,
+		positionedThisRound = false,
 		_locked = false,
 	}, PlayerState)
 end
@@ -72,6 +73,7 @@ function PlayerState:Reset()
 	end
 	self.status = Configs.PLAYER_STATUSES.Alive
 	self.isInGame = true
+	self.positionedThisRound = false
 	self._locked = false
 end
 
