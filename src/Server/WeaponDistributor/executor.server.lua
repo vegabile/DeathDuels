@@ -1,18 +1,8 @@
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local ServerScriptService = game:GetService("ServerScriptService")
-local WeaponDistributor = require(script.Parent)
-local ServerEventBus = require(ServerScriptService.ServerEventBus)
-local RoundConfigs = require(ReplicatedStorage.Round.Configs)
-local TeleportMetadataService = require(ServerScriptService.RoundService.TeleportMetadataService)
---// Require for side effect: ensures WeaponSystemState's listener is connected
---// before this executor fires WeaponSystemReady, preventing a startup race.
-local _ = require(ServerScriptService.WeaponSystemState)
+--// Validates weapon templates at module load. Calls WeaponDistributor.init once.
+--// No listeners. No _roundActive flag. RoundSystem calls distributeToPlayer directly.
 
-local _roundActive = false
-ServerEventBus:Connect("RoundStateChanged", function(state)
-	_roundActive = (state == RoundConfigs.GAME_STATES.RoundActive)
-end)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local WeaponDistributor = require(script.Parent)
 
 local function validateWeapons(): (boolean, { string }?, { Tool }?, { Tool }?)
 	local problems = {}
@@ -69,38 +59,12 @@ if not validationOk then
 	for _, msg in problems do
 		warn(`  - {msg}`)
 	end
-	ServerEventBus:Fire("WeaponSystemReady", false)
-	return
+	error("[WeaponDistributor] cannot initialize — see warnings above")
 end
 
 local initOk = WeaponDistributor.init(knives, guns)
 if not initOk then
-	warn("[WeaponDistributor] CRITICAL — init failed")
-	ServerEventBus:Fire("WeaponSystemReady", false)
-	return
+	error("[WeaponDistributor] init failed")
 end
 
-ServerEventBus:Fire("WeaponSystemReady", true)
-
-local function distribute(player: Player)
-	if not _roundActive then return end
-	local loadout = TeleportMetadataService.GetLoadout(player.UserId)
-	local knifeName = loadout and loadout.knifeName
-	local gunName = loadout and loadout.gunName
-	WeaponDistributor.distributeToPlayer(player, knifeName, gunName)
-end
-
-Players.PlayerAdded:Connect(function(player)
-	player.CharacterAdded:Connect(function()
-		distribute(player)
-	end)
-end)
-
-for _, player in Players:GetPlayers() do
-	player.CharacterAdded:Connect(function()
-		distribute(player)
-	end)
-	if player.Character then
-		distribute(player)
-	end
-end
+print(`[WeaponDistributor] initialized with {#knives} knives, {#guns} guns`)
