@@ -2,6 +2,7 @@ return {
 	GAME_STATES = {
 		WaitingForPlayers = "WaitingForPlayers",
 		AssigningTeams = "AssigningTeams",
+		PreparingPlayers = "PreparingPlayers",
 		RoundActive = "RoundActive",
 		RoundIntermission = "RoundIntermission",
 		GameOver = "GameOver",
@@ -13,6 +14,7 @@ return {
 		Alive = "Alive",
 		Dead = "Dead",
 		Disconnected = "Disconnected",
+		Skipped = "Skipped",
 	},
 
 	WAITING_PERIOD = 10,
@@ -20,7 +22,18 @@ return {
 	ROUND_INTERMISSION_DURATION = 5,
 	GAME_OVER_DURATION = 8,
 	RESPAWN_DELAY = 3,
-	CHARACTER_LOAD_TIMEOUT = 7,
+	READINESS_GRACE_FIRST_ROUND = 20,
+	LATE_TELEPORT_GRACE = 3,
+	CHAR_FACT_WAIT_TIMEOUT = 10,
+	POSITIONING_OUTER_TIMEOUT = 6,
+	DEFAULT_WALK_SPEED = 16,
+
+	REQUIRED_FACTS = {
+		"ProfileLoaded",
+		"LoadoutResolved",
+		"CharacterLoaded",
+		"CharacterUsable",
+	},
 
 	DEFAULT_LOADOUT = {
 		knifeName = "Default",  --// placeholder — user will edit post-approval
@@ -61,7 +74,8 @@ return {
 
 	LEGAL_TRANSITIONS = {
 		WaitingForPlayers = { "AssigningTeams", "Aborted" },
-		AssigningTeams = { "RoundActive", "Aborted" },
+		AssigningTeams = { "PreparingPlayers", "Aborted" },
+		PreparingPlayers = { "RoundActive", "Aborted" },
 		RoundActive = { "RoundIntermission", "GameOver", "Aborted" },
 		RoundIntermission = { "RoundActive", "GameOver", "Aborted" },
 		GameOver = { "TeleportingOut" },
