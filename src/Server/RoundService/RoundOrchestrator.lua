@@ -181,86 +181,6 @@ local function exitSkippedOrPosition(system, player: Player, playerState, spawnP
 	WeaponDistributor.distributeToPlayer(player, knifeName, gunName)
 end
 
-local function loadAndPositionPlayers(system)
-	local spawnGroups = getSpawnAssignment(system)
-	local remaining = 0
-	local doneEvent = system._positioningDoneEvent
-
-	for teamNum, spawns in spawnGroups do
-		local players = system._teamPlayers[teamNum]
-		if #spawns == 0 then
-			warn(`[Round] No spawn parts found for team {teamNum}`)
-			continue
-		end
-		for i, player in players do
-			if not system._playerStates[player] then
-				warn(`[Round] {player.Name} skipped — no playerState`)
-				continue
-			end
-			remaining += 1
-			local spawnPart = spawns[((i - 1) % #spawns) + 1]
-
-			task.spawn(function()
-				local deadline = os.clock() + Configs.CHARACTER_LOAD_TIMEOUT
-
-				--// LoadCharacter throws if the player disconnects mid-call.
-				pcall(function()
-					if not player.Character
-						or not player.Character:FindFirstChild("Humanoid")
-						or player.Character.Humanoid.Health <= 0
-					then
-						player:LoadCharacter()
-					end
-				end)
-
-				--// Wait for the character model itself (may already exist).
-				local character = player.Character
-				if not character and player.Parent then
-					local result
-					local conn = player.CharacterAdded:Connect(function(c)
-						result = c
-					end)
-					while not result and os.clock() < deadline and player.Parent do
-						task.wait()
-					end
-					conn:Disconnect()
-					character = result
-				end
-
-				--// Wait for HumanoidRootPart to replicate within the remaining
-				--// deadline. CharacterAdded can fire before HRP is available,
-				--// so the HRP wait is the real "usable character" signal.
-				local rootPart
-				if character and player.Parent then
-					local timeLeft = deadline - os.clock()
-					if timeLeft > 0 then
-						rootPart = character:WaitForChild("HumanoidRootPart", timeLeft)
-					end
-				end
-
-				if rootPart then
-					rootPart.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
-					print(`[Round] {player.Name} → Team {teamNum} → {spawnPart.Name}`)
-				else
-					warn(`[Round] Character load timed out for {player.Name} — kicking`)
-					if player.Parent then
-						player:Kick(Configs.KICK_REASONS.CharacterLoadTimeout)
-					end
-				end
-
-				remaining -= 1
-				if remaining == 0 then
-					doneEvent:Fire()
-				end
-			end)
-		end
-	end
-
-	if remaining > 0 then
-		doneEvent.Event:Wait()
-	end
-end
-
 local function enterWaitingForPlayers(system)
 	print(`[Round] State: WaitingForPlayers — fallback in {Configs.WAITING_PERIOD}s`)
 	system._waitTask = task.delay(Configs.WAITING_PERIOD, function()
@@ -375,42 +295,114 @@ local function enterRoundActive(system)
 	system._roundNumber += 1
 	print(`[Round] State: RoundActive — Round {system._roundNumber} | {Configs.ROUND_DURATION}s`)
 
-	task.spawn(function()
-		system._positioningPlayers = true
-		loadAndPositionPlayers(system)
+	system._positioningPlayers = true   --// gates _checkWinCondition during positioning
+
+	--// Round timer starts NOW, parallel to positioning. Late-teleport is
+	--// genuinely late — the round is already live.
+	system._roundTimerTask = task.delay(Configs.ROUND_DURATION, function()
+		system._roundTimerTask = nil
+		if system._stateMachine:GetState() ~= Configs.GAME_STATES.RoundActive then return end
+
+		--// Time expired — determine winner by alive count
+		local t1 = system._teamStates[1]:Recalculate()
+		local t2 = system._teamStates[2]:Recalculate()
+
+		local winningTeam = nil
+		if t1.alivePlayers > t2.alivePlayers then
+			winningTeam = 1
+		elseif t2.alivePlayers > t1.alivePlayers then
+			winningTeam = 2
+		end
+
+		print(`[Round] Time expired — winner: {winningTeam and "Team "..winningTeam or "Draw"}`)
+
+		table.insert(system._roundResults, { winningTeam = winningTeam, stats = {} })
+		system:_fireEvent("RoundOver", winningTeam, system._roundNumber)
+
+		local gameOver = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
+		if gameOver then
+			system:_transition(Configs.GAME_STATES.GameOver)
+		else
+			system:_transition(Configs.GAME_STATES.RoundIntermission)
+		end
+	end)
+
+	local remaining = 0
+	local finalized = false
+	local function finalize()
+		if finalized then return end
+		finalized = true
 		system._positioningPlayers = false
 		system:_broadcastUpdate()
 		system:_checkWinCondition()
+	end
 
-		if system._stateMachine:GetState() ~= Configs.GAME_STATES.RoundActive then return end
+	--// Pre-compute spawn groups so per-player assignments rotate deterministically.
+	local spawnGroups = getSpawnAssignment(system)
 
-		system._roundTimerTask = task.delay(Configs.ROUND_DURATION, function()
-			system._roundTimerTask = nil
-			if system._stateMachine:GetState() ~= Configs.GAME_STATES.RoundActive then return end
-
-			--// Time expired — determine winner by alive count
-			local t1 = system._teamStates[1]:Recalculate()
-			local t2 = system._teamStates[2]:Recalculate()
-
-			local winningTeam = nil
-			if t1.alivePlayers > t2.alivePlayers then
-				winningTeam = 1
-			elseif t2.alivePlayers > t1.alivePlayers then
-				winningTeam = 2
+	for teamNum, players in system._teamPlayers do
+		local spawns = spawnGroups[teamNum]
+		if not spawns or #spawns == 0 then
+			warn(`[Round] No spawn parts found for team {teamNum}`)
+			continue
+		end
+		for i, player in players do
+			local playerState = system._playerStates[player]
+			if not playerState then continue end
+			if playerState.status == Configs.PLAYER_STATUSES.Disconnected then continue end
+			if playerState.status == Configs.PLAYER_STATUSES.Skipped then
+				--// Round-1 force-skipped from PreparingPlayers. No late-teleport
+				--// within the same round — they wait for the next intermission exit.
+				continue
 			end
 
-			print(`[Round] Time expired — winner: {winningTeam and "Team "..winningTeam or "Draw"}`)
+			local spawnPart = spawns[((i - 1) % #spawns) + 1]
+			remaining += 1
 
-			table.insert(system._roundResults, { winningTeam = winningTeam, stats = {} })
-			system:_fireEvent("RoundOver", winningTeam, system._roundNumber)
+			task.spawn(function()
+				local ok, err = pcall(function()
+					--// Fast path (round 1): facts already set by PreparingPlayers.
+					--// Slow path (rounds 2+): intermission cleared char facts; re-load
+					--//                        with per-player LATE_TELEPORT_GRACE.
+					if not PlayerReadiness.isComplete(player) then
+						local ready = loadCharacterAndRecord(player, Configs.LATE_TELEPORT_GRACE)
+						if not ready then
+							applySkipped(system, player, playerState)
+							return
+						end
+					end
+					local loadout = TeleportMetadataService.GetLoadout(player.UserId)
+					exitSkippedOrPosition(system, player, playerState, spawnPart, loadout)
+				end)
+				if not ok then
+					warn(`[Round] Positioning task errored for {player.Name}: {err}`)
+					applySkipped(system, player, playerState)
+				end
+				remaining -= 1
+				if remaining == 0 then finalize() end
+			end)
+		end
+	end
 
-			local gameOver = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
-			if gameOver then
-				system:_transition(Configs.GAME_STATES.GameOver)
-			else
-				system:_transition(Configs.GAME_STATES.RoundIntermission)
+	if remaining == 0 then finalize() end   --// edge case: nobody eligible
+
+	--// Safety backstop — NOT a gate. Parallel to positioning and the round timer.
+	task.delay(Configs.POSITIONING_OUTER_TIMEOUT, function()
+		if finalized then return end
+		warn("[Round] Positioning outer safety timer fired — force-finalizing")
+		for _, player in system._roundRoster do
+			local state = system._playerStates[player]
+			if not state then continue end
+			local s = state.status
+			if s ~= Configs.PLAYER_STATUSES.Alive
+				and s ~= Configs.PLAYER_STATUSES.Skipped
+				and s ~= Configs.PLAYER_STATUSES.Disconnected
+			then
+				warn(`[Round] {player.Name} did not reach terminal state — forcing Skipped`)
+				applySkipped(system, player, state)
 			end
-		end)
+		end
+		finalize()
 	end)
 end
 
