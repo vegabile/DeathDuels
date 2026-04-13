@@ -129,7 +129,7 @@ PLAYER_STATUSES = {
 }
 ```
 
-`TeamState.Recalculate` treats `Skipped` identically to `Dead` for alive-count purposes — no code change required in `TeamState`, since the existing check is "status == Alive".
+`TeamState.Recalculate` treats `Skipped` as not-alive. **The current code has an `else alive += 1` branch that would miscount `Skipped` as alive**, so it needs a change: the alive branch must become an explicit `state.status == Alive` check, with `Skipped` handled as a separate counter (or folded into the `Dead` counter — see §11.12).
 
 ### 5.4 New `Configs` entries
 
@@ -738,7 +738,23 @@ Calling it twice with the same inputs produces the same backpack state.
 
 ### 11.12 `src/Server/RoundService/TeamState.lua`
 
-**Zero code changes.** The existing `status == Alive` check correctly counts `Skipped` as not-alive.
+**`Recalculate()` needs a change.** The current implementation is `if Disconnected elseif Dead else alive += 1` — the `else` catches every non-Dead, non-Disconnected status, including `Skipped`. Fix: add an explicit `Skipped` branch and make the alive increment explicitly require `status == Alive`.
+
+```lua
+if state.status == Configs.PLAYER_STATUSES.Disconnected then
+    disconnected += 1
+elseif state.status == Configs.PLAYER_STATUSES.Dead then
+    dead += 1
+elseif state.status == Configs.PLAYER_STATUSES.Skipped then
+    skipped += 1
+elseif state.status == Configs.PLAYER_STATUSES.Alive then
+    alive += 1
+else
+    warn(`[TeamState] Unknown status: {state.status}`)
+end
+```
+
+The `Recalculate` snapshot also gains a `skippedPlayers: number` field. `totalPlayerCount` becomes `alive + dead + skipped` so `HasFullDisconnect()` doesn't lie about an all-skipped team.
 
 ### 11.13 `src/Server/KnifeService/` and `src/Server/GunService/`
 
