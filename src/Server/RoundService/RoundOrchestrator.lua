@@ -277,12 +277,6 @@ local function enterAssigningTeams(system)
 		system._waitTask = nil
 	end
 
-	if not WeaponSystemState.IsReady() then
-		warn("[Round] Weapon system not ready — aborting round")
-		system:_transition(Configs.GAME_STATES.Aborted)
-		return
-	end
-
 	local mapName = TeleportMetadataService.GetMapName()
 	print(`[Round] State: AssigningTeams — map: "{mapName}"`)
 
@@ -316,7 +310,23 @@ local function enterAssigningTeams(system)
 	system._teamStates[1] = TeamState.new(1, system._teamPlayers[1], system._playerStates)
 	system._teamStates[2] = TeamState.new(2, system._teamPlayers[2], system._playerStates)
 
-	system:_transition(Configs.GAME_STATES.RoundActive)
+	--// Freeze the authoritative roster for this match. Downstream reads consult
+	--// this list, not _pendingPlayers (cleared below) and not _teamPlayers
+	--// directly (still used for per-team operations, but composition matches roster).
+	local roster: { Player } = {}
+	for _, p in system._teamPlayers[1] do table.insert(roster, p) end
+	for _, p in system._teamPlayers[2] do table.insert(roster, p) end
+	system._roundRoster = roster
+
+	--// Synchronous fact write — the loadout is in-memory by this point.
+	for _, p in roster do
+		PlayerReadiness.recordFact(p, "LoadoutResolved")
+	end
+
+	--// _pendingPlayers is only meaningful during WaitingForPlayers.
+	system._pendingPlayers = {}
+
+	system:_transition(Configs.GAME_STATES.PreparingPlayers)
 end
 
 local function enterRoundActive(system)
