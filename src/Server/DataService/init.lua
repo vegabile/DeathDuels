@@ -2,9 +2,11 @@ local Types = require(script.Types)
 type DataSchema = Types.DataSchema
 
 local Players = game:GetService("Players")
+local ServerScriptService = game:GetService("ServerScriptService")
 local ProfileStore = require(script.ProfileService)
 local DebugUtility = require(game.ReplicatedStorage.DebugUtility)
 local Configs = require(script.Configs)
+local ServerEventBus = require(ServerScriptService.ServerEventBus)
 
 local DEBUG = Configs.DEBUG_MODE
 local debugPrint = DebugUtility.Print
@@ -146,6 +148,7 @@ function DataService:OnPlayerAdded(player: Player)
 	if player:IsDescendantOf(Players) and not LeavingFlags[player] then
 		Profiles[player] = profile
 		debugPrint(DEBUG, `[DataService] Profile stored for {player.Name}`)
+		ServerEventBus:Fire("ProfileLoaded", player)
 	else
 		debugPrint(DEBUG, `[DataService] {player.Name} left before profile loaded, ending session`)
 		IntentionalEnds[player] = true
