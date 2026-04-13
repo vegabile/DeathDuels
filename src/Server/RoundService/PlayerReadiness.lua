@@ -86,6 +86,36 @@ function PlayerReadiness.missingFacts(player: any): { string }
 	return missing
 end
 
+function PlayerReadiness.beginCharacterLoad(player: any): number
+	local rec = records[player] or PlayerReadiness.ensureRecord(player)
+	rec.loadAttempt += 1
+	rec.facts.CharacterLoaded = nil
+	rec.facts.CharacterUsable = nil
+	--// Always fire once — token advance is a meaningful change even without fact clears.
+	ChangedSignal:Fire()
+	return rec.loadAttempt
+end
+
+function PlayerReadiness.recordCharacterFact(player: any, token: number, factName: string)
+	if factName ~= "CharacterLoaded" and factName ~= "CharacterUsable" then
+		warn(`[PlayerReadiness] recordCharacterFact: "{factName}" is not a character fact`)
+		return
+	end
+	local rec = records[player]
+	if not rec then
+		warn(`[PlayerReadiness] recordCharacterFact: no record for {tostring(player)}`)
+		return
+	end
+	if token ~= rec.loadAttempt then
+		local playerName = (player :: any).Name or tostring(player)
+		warn(`[PlayerReadiness] stale char fact {factName} for {playerName} (token {token} != current {rec.loadAttempt})`)
+		return
+	end
+	if rec.facts[factName] then return end
+	rec.facts[factName] = true
+	ChangedSignal:Fire()
+end
+
 --// Test-only: clears all records and resets the store.
 function PlayerReadiness._reset()
 	records = {}

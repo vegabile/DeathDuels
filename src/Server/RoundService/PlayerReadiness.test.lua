@@ -88,4 +88,62 @@ do
 	check("recordFact: fact present after auto-create", rec.facts.ProfileLoaded == true)
 end
 
+-- ─── beginCharacterLoad / recordCharacterFact ─────────────────────────────────
+
+do
+	freshStore()
+	local p = mockPlayer("Erin", 5)
+	PlayerReadiness.ensureRecord(p)
+
+	local t1 = PlayerReadiness.beginCharacterLoad(p)
+	check("beginCharacterLoad: returns a number token", type(t1) == "number")
+	check("beginCharacterLoad: token is 1 on first call", t1 == 1)
+
+	local t2 = PlayerReadiness.beginCharacterLoad(p)
+	check("beginCharacterLoad: token monotonic", t2 == 2)
+	check("beginCharacterLoad: tokens differ", t1 ~= t2)
+end
+
+do
+	freshStore()
+	local p = mockPlayer("Frank", 6)
+	PlayerReadiness.ensureRecord(p)
+
+	PlayerReadiness.recordFact(p, "ProfileLoaded")
+	PlayerReadiness.recordFact(p, "LoadoutResolved")
+
+	local token = PlayerReadiness.beginCharacterLoad(p)
+	PlayerReadiness.recordCharacterFact(p, token, "CharacterLoaded")
+	PlayerReadiness.recordCharacterFact(p, token, "CharacterUsable")
+
+	check("recordCharacterFact: writes with matching token", PlayerReadiness.getRecord(p).facts.CharacterLoaded == true)
+	check("isComplete: true with all 4 facts", PlayerReadiness.isComplete(p))
+end
+
+do
+	freshStore()
+	local p = mockPlayer("Gail", 7)
+	PlayerReadiness.ensureRecord(p)
+
+	local staleToken = PlayerReadiness.beginCharacterLoad(p)
+	PlayerReadiness.beginCharacterLoad(p)   --// supersedes staleToken
+
+	PlayerReadiness.recordCharacterFact(p, staleToken, "CharacterLoaded")
+	check("recordCharacterFact: stale token is dropped", PlayerReadiness.getRecord(p).facts.CharacterLoaded == nil)
+end
+
+do
+	freshStore()
+	local p = mockPlayer("Henry", 8)
+	PlayerReadiness.ensureRecord(p)
+
+	local token = PlayerReadiness.beginCharacterLoad(p)
+	PlayerReadiness.recordCharacterFact(p, token, "CharacterLoaded")
+
+	--// Starting a fresh load clears char facts and bumps token.
+	local newToken = PlayerReadiness.beginCharacterLoad(p)
+	check("beginCharacterLoad: clears CharacterLoaded", PlayerReadiness.getRecord(p).facts.CharacterLoaded == nil)
+	check("beginCharacterLoad: new token != old", newToken ~= token)
+end
+
 print(`\n{passed} passed, {failed} failed`)
