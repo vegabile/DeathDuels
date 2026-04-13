@@ -146,6 +146,41 @@ local function applySkipped(system, player: Player, playerState)
 	system:_broadcastUpdate()
 end
 
+--// Idempotent gate per (player, round). The first call positions the player
+--// at the spawn part, restores walk speed, removes any ForceField, and runs
+--// idempotent weapon distribution. Subsequent calls in the same round are
+--// no-ops via the positionedThisRound flag.
+local function exitSkippedOrPosition(system, player: Player, playerState, spawnPart: BasePart, loadout)
+	if playerState.positionedThisRound then return end
+	playerState.positionedThisRound = true
+
+	playerState.status = Configs.PLAYER_STATUSES.Alive
+
+	local character = (player :: any).Character
+	if not character then
+		warn(`[Round] exitSkippedOrPosition: {player.Name} has no character; cannot position`)
+		return
+	end
+
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if hrp and hrp:IsA("BasePart") then
+		hrp.Anchored = false
+		hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
+	end
+	if humanoid then
+		humanoid.WalkSpeed = Configs.DEFAULT_WALK_SPEED
+	end
+
+	for _, child in character:GetChildren() do
+		if child:IsA("ForceField") then child:Destroy() end
+	end
+
+	local knifeName = loadout and loadout.knifeName
+	local gunName = loadout and loadout.gunName
+	WeaponDistributor.distributeToPlayer(player, knifeName, gunName)
+end
+
 local function loadAndPositionPlayers(system)
 	local spawnGroups = getSpawnAssignment(system)
 	local remaining = 0
