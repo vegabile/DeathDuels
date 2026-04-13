@@ -2,18 +2,22 @@ local Players = game:GetService("Players")
 Players.CharacterAutoLoads = false
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local GlobalConfigs = require(ReplicatedStorage.GlobalConfigs)
 local Configs = require(ReplicatedStorage.Round.Configs)
 
 local RoundService = require(script.Parent)
 local TeleportDataValidator = require(script.Parent.TeleportDataValidator)
+local PlayerReadiness = require(script.Parent.PlayerReadiness)
+local ServerEventBus = require(ServerScriptService.ServerEventBus)
 
 local roundSystem = nil
 
-local ServerStorage = game:GetService("ServerStorage")
---// PLACEHOLDER PATH — user will relocate this BindableEvent post-approval.
-local positioningDoneEvent =
-	ServerStorage:WaitForChild("RoundEvents"):WaitForChild("PositioningDone")
+--// Subscribe once at script load. Producers fire ProfileLoaded;
+--// we translate to a readiness fact write.
+ServerEventBus:Connect("ProfileLoaded", function(player: Player)
+	PlayerReadiness.recordFact(player, "ProfileLoaded")
+end)
 
 local function buildTemplateTeleportData(player: Player)
 	return {
@@ -30,6 +34,8 @@ local function buildTemplateTeleportData(player: Player)
 end
 
 local function setupPlayer(player: Player)
+	PlayerReadiness.ensureRecord(player)
+
 	local teleportData
 
 	if GlobalConfigs.TEST_MODE then
@@ -51,14 +57,16 @@ local function setupPlayer(player: Player)
 	if not roundSystem then
 		local expected = #teleportData.teamOnePlayers + #teleportData.teamTwoPlayers
 		print(`[Round] Creating RoundSystem — map: {teleportData.mapName}, expecting {expected} player(s)`)
-		roundSystem = RoundService.new(teleportData, positioningDoneEvent)
+		roundSystem = RoundService.new(teleportData)
 	end
 
 	roundSystem:RegisterPlayer(player)
 
+	--// Cosmetic waiting-area spawn. This CharacterAdded handler does NOT write
+	--// readiness facts — those are written exclusively by loadCharacterAndRecord.
 	player.CharacterAdded:Connect(function(character)
 		if roundSystem:GetState() == Configs.GAME_STATES.WaitingForPlayers then
-			local rootPart = character:WaitForChild("HumanoidRootPart", Configs.CHARACTER_LOAD_TIMEOUT)
+			local rootPart = character:WaitForChild("HumanoidRootPart", Configs.CHAR_FACT_WAIT_TIMEOUT)
 			if rootPart then
 				local spawnBox = workspace:FindFirstChild(Configs.INITIAL_SPAWN_PART)
 				if spawnBox then
@@ -92,4 +100,5 @@ Players.PlayerRemoving:Connect(function(player: Player)
 	if roundSystem then
 		roundSystem:UnregisterPlayer(player)
 	end
+	PlayerReadiness.destroyRecord(player)
 end)
