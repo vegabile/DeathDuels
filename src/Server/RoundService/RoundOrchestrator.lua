@@ -86,6 +86,66 @@ local function loadCharacterAndRecord(player: Player, timeout: number): boolean
 	return true
 end
 
+local function clearBackpack(player: Player)
+	local backpack = player:FindFirstChildWhichIsA("Backpack")
+	if backpack then
+		for _, child in backpack:GetChildren() do
+			if child:IsA("Tool") then child:Destroy() end
+		end
+	end
+	local character = (player :: any).Character
+	if character then
+		for _, child in character:GetChildren() do
+			if child:IsA("Tool") then child:Destroy() end
+		end
+	end
+end
+
+local function pickInitialSpawnCFrame(): CFrame
+	local spawnBox = workspace:FindFirstChild(Configs.INITIAL_SPAWN_PART)
+	if spawnBox and spawnBox:IsA("BasePart") then
+		local half = spawnBox.Size / 2
+		local rx = (math.random() * 2 - 1) * half.X
+		local rz = (math.random() * 2 - 1) * half.Z
+		return spawnBox.CFrame * CFrame.new(rx, half.Y + 3, rz)
+	end
+	warn("[Round] InitialSpawnBox missing — falling back to (0, 100, 0)")
+	return CFrame.new(0, 100, 0)
+end
+
+--// Idempotent. Synchronously applies all physical side effects of being Skipped:
+--// clears backpack, teleports to initial spawn, anchors HRP, zeros walk speed,
+--// adds a ForceField. Calls _broadcastUpdate so clients see the status flip
+--// atomically with the physical change.
+local function applySkipped(system, player: Player, playerState)
+	if playerState.status == Configs.PLAYER_STATUSES.Skipped then return end
+	playerState.status = Configs.PLAYER_STATUSES.Skipped
+
+	clearBackpack(player)
+
+	local character = (player :: any).Character
+	if character then
+		local hrp = character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if hrp and hrp:IsA("BasePart") then
+			hrp.CFrame = pickInitialSpawnCFrame()
+			hrp.Anchored = true
+		end
+		if humanoid then
+			humanoid.WalkSpeed = 0
+		end
+		if not character:FindFirstChildOfClass("ForceField") then
+			local ff = Instance.new("ForceField")
+			ff.Visible = true
+			ff.Parent = character
+		end
+	else
+		warn(`[Round] applySkipped: {player.Name} has no character; physical side effects deferred until next character load`)
+	end
+
+	system:_broadcastUpdate()
+end
+
 local function loadAndPositionPlayers(system)
 	local spawnGroups = getSpawnAssignment(system)
 	local remaining = 0
