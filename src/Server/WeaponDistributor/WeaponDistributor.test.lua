@@ -63,6 +63,9 @@ local function makePlayerWithBackpack(): (Instance, Instance)
 	player.Name = "MockPlayer"
 	local backpack = Instance.new("Backpack")
 	backpack.Parent = player
+	local character = Instance.new("Model")
+	character.Name = "Character"
+	character.Parent = player
 	player.Parent = workspace
 	track(player)
 	return player, backpack
@@ -71,6 +74,9 @@ end
 local function makePlayerNoBackpack(): Instance
 	local player = Instance.new("Folder")
 	player.Name = "MockPlayerNoBackpack"
+	local character = Instance.new("Model")
+	character.Name = "Character"
+	character.Parent = player
 	player.Parent = workspace
 	track(player)
 	return player
@@ -350,6 +356,35 @@ do
 		if tool:GetAttribute("IsKnife") then distributedKnife = tool break end
 	end
 	check("Distributed knife clone has Hitbox", distributedKnife ~= nil and distributedKnife:FindFirstChild("Hitbox") ~= nil)
+
+	cleanAll()
+end
+
+-- ─── distributeToPlayer idempotency ───────────────────────────────────────────
+
+do
+	WeaponDistributor._reset()
+	local k1 = makeTool("IdemKnife")
+	addHandle(k1)
+	local g1 = makeTool("IdemGun")
+	local gh = addHandle(g1)
+	gh.Size = Vector3.new(0.2, 1.0, 1.5)
+	addAttachment(gh, "ShootPoint")
+	local initOk = WeaponDistributor.init({ k1 }, { g1 })
+	check("idempotent: init ok", initOk)
+
+	local mockPlayer, backpack = makePlayerWithBackpack()
+	WeaponDistributor.distributeToPlayer(mockPlayer, "IdemKnife", "IdemGun")
+	WeaponDistributor.distributeToPlayer(mockPlayer, "IdemKnife", "IdemGun")
+
+	local knifeCount = 0
+	local gunCount = 0
+	for _, child in backpack:GetChildren() do
+		if child.Name == "IdemKnife" then knifeCount += 1 end
+		if child.Name == "IdemGun" then gunCount += 1 end
+	end
+	check("idempotent: exactly one knife after two calls", knifeCount == 1)
+	check("idempotent: exactly one gun after two calls", gunCount == 1)
 
 	cleanAll()
 end

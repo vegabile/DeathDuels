@@ -103,6 +103,12 @@ function WeaponDistributor.distributeToPlayer(player: Player, knifeName: string?
 		return
 	end
 
+	local character = (player :: any).Character
+	if not character then
+		warn(`[WeaponDistributor] {player.Name} has no character`)
+		return
+	end
+
 	local backpack = player:FindFirstChildWhichIsA("Backpack")
 	if not backpack then
 		warn(`[WeaponDistributor] No Backpack found for {player.Name}`)
@@ -112,13 +118,18 @@ function WeaponDistributor.distributeToPlayer(player: Player, knifeName: string?
 	local knifeTemplate = (knifeName and knifeTemplates[knifeName]) or defaultKnifeTemplate
 	local gunTemplate = (gunName and gunTemplates[gunName]) or defaultGunTemplate
 
-	local knife = knifeTemplate:Clone()
-	knife:SetAttribute("IsKnife", true)
-	knife.Parent = backpack
+	--// Idempotency: skip if the tool is already in the backpack or equipped on the character.
+	if not backpack:FindFirstChild(knifeTemplate.Name) and not character:FindFirstChild(knifeTemplate.Name) then
+		local knife = knifeTemplate:Clone()
+		knife:SetAttribute("IsKnife", true)
+		knife.Parent = backpack
+	end
 
-	local gun = gunTemplate:Clone()
-	gun:SetAttribute("IsGun", true)
-	gun.Parent = backpack
+	if not backpack:FindFirstChild(gunTemplate.Name) and not character:FindFirstChild(gunTemplate.Name) then
+		local gun = gunTemplate:Clone()
+		gun:SetAttribute("IsGun", true)
+		gun.Parent = backpack
+	end
 end
 
 --// Test-only: resets module state so tests can run in isolation
