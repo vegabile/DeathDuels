@@ -116,6 +116,33 @@ function PlayerReadiness.recordCharacterFact(player: any, token: number, factNam
 	ChangedSignal:Fire()
 end
 
+function PlayerReadiness.waitForChange(timeout: number)
+	local fired = false
+	local conn
+	conn = ChangedSignal.Event:Connect(function()
+		fired = true
+	end)
+	local timer = task.delay(timeout, function()
+		fired = true
+	end)
+	while not fired do
+		task.wait()
+	end
+	conn:Disconnect()
+	task.cancel(timer)
+end
+
+function PlayerReadiness.waitForComplete(player: any, timeout: number): boolean
+	if PlayerReadiness.isComplete(player) then return true end
+	local deadline = os.clock() + timeout
+	while true do
+		local timeLeft = deadline - os.clock()
+		if timeLeft <= 0 then return false end
+		PlayerReadiness.waitForChange(timeLeft)
+		if PlayerReadiness.isComplete(player) then return true end
+	end
+end
+
 --// Test-only: clears all records and resets the store.
 function PlayerReadiness._reset()
 	records = {}

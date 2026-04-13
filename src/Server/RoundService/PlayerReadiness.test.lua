@@ -146,4 +146,82 @@ do
 	check("beginCharacterLoad: new token != old", newToken ~= token)
 end
 
+-- ─── waitForChange / waitForComplete ──────────────────────────────────────────
+
+do
+	freshStore()
+	local p = mockPlayer("Iris", 9)
+	PlayerReadiness.ensureRecord(p)
+
+	--// waitForChange on immediate trigger
+	task.spawn(function()
+		task.wait(0.05)
+		PlayerReadiness.recordFact(p, "ProfileLoaded")
+	end)
+	local start = os.clock()
+	PlayerReadiness.waitForChange(1.0)
+	local elapsed = os.clock() - start
+	check("waitForChange: returns when signal fires", elapsed < 0.5)
+
+	--// waitForChange with timeout (no fire)
+	freshStore()
+	start = os.clock()
+	PlayerReadiness.waitForChange(0.2)
+	elapsed = os.clock() - start
+	check("waitForChange: respects timeout", elapsed >= 0.15 and elapsed < 0.4)
+end
+
+do
+	freshStore()
+	local p = mockPlayer("Jay", 10)
+	PlayerReadiness.ensureRecord(p)
+	--// Pre-populate all facts
+	PlayerReadiness.recordFact(p, "ProfileLoaded")
+	PlayerReadiness.recordFact(p, "LoadoutResolved")
+	local token = PlayerReadiness.beginCharacterLoad(p)
+	PlayerReadiness.recordCharacterFact(p, token, "CharacterLoaded")
+	PlayerReadiness.recordCharacterFact(p, token, "CharacterUsable")
+
+	local start = os.clock()
+	local ready = PlayerReadiness.waitForComplete(p, 1.0)
+	local elapsed = os.clock() - start
+	check("waitForComplete: returns true immediately if already complete", ready == true and elapsed < 0.05)
+end
+
+do
+	freshStore()
+	local p = mockPlayer("Kim", 11)
+	PlayerReadiness.ensureRecord(p)
+
+	--// Drive facts one at a time on a spawned coroutine
+	task.spawn(function()
+		task.wait(0.05)
+		PlayerReadiness.recordFact(p, "ProfileLoaded")
+		task.wait(0.05)
+		PlayerReadiness.recordFact(p, "LoadoutResolved")
+		task.wait(0.05)
+		local t = PlayerReadiness.beginCharacterLoad(p)
+		PlayerReadiness.recordCharacterFact(p, t, "CharacterLoaded")
+		PlayerReadiness.recordCharacterFact(p, t, "CharacterUsable")
+	end)
+
+	local start = os.clock()
+	local ready = PlayerReadiness.waitForComplete(p, 1.0)
+	local elapsed = os.clock() - start
+	check("waitForComplete: returns true when facts arrive mid-wait", ready == true)
+	check("waitForComplete: returned before timeout", elapsed < 0.9)
+end
+
+do
+	freshStore()
+	local p = mockPlayer("Liam", 12)
+	PlayerReadiness.ensureRecord(p)
+
+	local start = os.clock()
+	local ready = PlayerReadiness.waitForComplete(p, 0.25)
+	local elapsed = os.clock() - start
+	check("waitForComplete: returns false on timeout", ready == false)
+	check("waitForComplete: respects timeout bound", elapsed >= 0.2 and elapsed < 0.5)
+end
+
 print(`\n{passed} passed, {failed} failed`)
