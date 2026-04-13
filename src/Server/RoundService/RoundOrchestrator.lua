@@ -3,13 +3,14 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 local Configs = require(ReplicatedStorage.Round.Configs)
 local ServerEventBus = require(ServerScriptService.ServerEventBus)
-local WeaponSystemState = require(ServerScriptService.WeaponSystemState)
+local WeaponDistributor = require(ServerScriptService.WeaponDistributor)
 
 local PlayerState = require(script.Parent.PlayerState)
 local TeamState = require(script.Parent.TeamState)
 local WinConditionEvaluator = require(script.Parent.WinConditionEvaluator)
 local TeleportMetadataService = require(script.Parent.TeleportMetadataService)
 local TeleportUtility = require(script.Parent.TeleportUtility)
+local PlayerReadiness = require(script.Parent.PlayerReadiness)
 
 local RoundOrchestrator = {}
 
@@ -34,6 +35,55 @@ local function getSpawnAssignment(system)
 	else
 		return { [1] = blue, [2] = red }
 	end
+end
+
+--// Sole driver of round-scoped player:LoadCharacter() calls.
+--// Captures a load token synchronously, kicks off LoadCharacter, waits up to
+--// `timeout` for CharacterAdded, then waits for HRP+Humanoid bounded by
+--// CHAR_FACT_WAIT_TIMEOUT, then writes character facts via the token gate.
+--// Returns true on success, false on any timeout/failure.
+local function loadCharacterAndRecord(player: Player, timeout: number): boolean
+	local token = PlayerReadiness.beginCharacterLoad(player)
+
+	local characterResult: Model? = nil
+	local characterSignal = Instance.new("BindableEvent")
+	local conn = player.CharacterAdded:Once(function(c)
+		characterResult = c
+		characterSignal:Fire()
+	end)
+
+	local loadOk = pcall(function() player:LoadCharacter() end)
+	if not loadOk then
+		conn:Disconnect()
+		characterSignal:Destroy()
+		warn(`[Round] loadCharacterAndRecord: LoadCharacter threw for {player.Name}`)
+		return false
+	end
+
+	if not characterResult then
+		local timer = task.delay(timeout, function()
+			characterSignal:Fire()
+		end)
+		characterSignal.Event:Wait()
+		task.cancel(timer)
+	end
+	characterSignal:Destroy()
+
+	if not characterResult then
+		conn:Disconnect()
+		return false
+	end
+
+	local character = characterResult :: Model
+	local hrp = character:WaitForChild("HumanoidRootPart", Configs.CHAR_FACT_WAIT_TIMEOUT)
+	local humanoid = character:WaitForChild("Humanoid", Configs.CHAR_FACT_WAIT_TIMEOUT)
+	if not hrp or not humanoid then
+		return false
+	end
+
+	PlayerReadiness.recordCharacterFact(player, token, "CharacterLoaded")
+	PlayerReadiness.recordCharacterFact(player, token, "CharacterUsable")
+	return true
 end
 
 local function loadAndPositionPlayers(system)
