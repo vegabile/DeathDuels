@@ -524,4 +524,8 @@ function RoundOrchestrator.enter(state: string, system)
 	end
 end
 
+--// Test-only hook. Not called by any production code path. Integration tests
+--// use this to exercise applySkipped against a live player in edit mode.
+RoundOrchestrator._testApplySkipped = applySkipped
+
 return RoundOrchestrator

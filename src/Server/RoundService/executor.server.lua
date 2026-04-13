@@ -58,6 +58,9 @@ local function setupPlayer(player: Player)
 		local expected = #teleportData.teamOnePlayers + #teleportData.teamTwoPlayers
 		print(`[Round] Creating RoundSystem — map: {teleportData.mapName}, expecting {expected} player(s)`)
 		roundSystem = RoundService.new(teleportData)
+		if GlobalConfigs.TEST_MODE then
+			_G._testRoundSystem = roundSystem
+		end
 	end
 
 	roundSystem:RegisterPlayer(player)
