@@ -426,8 +426,19 @@ local function enterRoundIntermission(system)
 		system._waitTask = nil
 
 		for _, playerState in system._playerStates do
+			if playerState.status == Configs.PLAYER_STATUSES.Disconnected then
+				--// Leave disconnected entries alone — they remain Disconnected for the rest of the match.
+				continue
+			end
 			playerState:Unlock()
-			playerState:Reset()
+			playerState:Reset()   --// sets status to Alive, clears positionedThisRound (Skipped → Alive too)
+		end
+
+		--// Clear character facts for every roster player. This forces the next
+		--// RoundActive's per-player tasks to take the slow path and reload.
+		for _, player in system._roundRoster do
+			PlayerReadiness.clearFact(player, "CharacterLoaded")
+			PlayerReadiness.clearFact(player, "CharacterUsable")
 		end
 
 		local isOver = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
