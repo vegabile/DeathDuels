@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \":*)",
+      "Bash(xargs grep:*)",
+      "WebSearch",
+      "WebFetch(domain:create.roblox.com)",
+      "WebFetch(domain:devforum.roblox.com)"
+    ]
+  }
+}

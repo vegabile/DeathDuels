@@ -1,0 +1,22 @@
+return {
+	DEBUG_MODE = false,
+	ValidActions = { "Stab", "Throw" },
+	MaxDirectionMagnitude = 1.1,
+	StabCooldown = 5,
+	ThrowCooldown = 5,
+	StabAnimationId = "",
+	ThrowAnimationId = "",
+	StabSoundId = "",
+	ThrowSoundId = "",
+	HitSoundId = "",
+	StickSoundId = "",
+	StabDuration = 0.5,
+	ThrowDuration = 0.5,
+	StabDamage = 100,
+	ThrowDamage = 100,
+	ThrowSpeed = 100,
+	StuckDespawnTime = 5,
+	ProjectileMaxLifetime = 7,
+
+	MAX_STAB_DISTANCE = 15,
+}

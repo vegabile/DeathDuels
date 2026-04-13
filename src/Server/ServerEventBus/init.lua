@@ -9,9 +9,7 @@ function ServerEventBus:Fire(eventName, ...)
 	end
 	local args = { ... }
 	for _, callback in list do
-		task.spawn(function()
-			callback(unpack(args))
-		end)
+		callback(unpack(args))
 	end
 end
 
