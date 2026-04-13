@@ -16,15 +16,16 @@ local TeleportMetadataService = require(script.TeleportMetadataService)
 local RoundSystem = {}
 RoundSystem.__index = RoundSystem
 
-function RoundSystem.new(metadata: TeleportMetadata, positioningDoneEvent: BindableEvent)
+function RoundSystem.new(metadata: TeleportMetadata)
 	TeleportMetadataService.Initialize(metadata)
 
 	local self = setmetatable({}, RoundSystem)
 
 	self._metadata = metadata
-	self._positioningDoneEvent = positioningDoneEvent
+	self._positioningDoneEvent = Instance.new("BindableEvent")
 	self._expectedPlayerCount = #metadata.teamOnePlayers + #metadata.teamTwoPlayers
 	self._pendingPlayers = {} :: { Player }
+	self._roundRoster = {} :: { Player }
 	self._stateMachine = RoundStateMachine.new()
 	self._playerStates = {} :: { [Player]: any }
 	self._teamPlayers = { [1] = {}, [2] = {} } :: { [number]: { Player } }
@@ -70,12 +71,14 @@ function RoundSystem:UnregisterPlayer(player: Player)
 		return
 	end
 
+	--// Later states: preserve the roster entry. The roster is authoritative for
+	--// the round, and downstream iteration relies on PlayerState entries being
+	--// present even after disconnect (status flips to Disconnected instead).
 	local playerState = self._playerStates[player]
 	if playerState then
 		playerState.status = Configs.PLAYER_STATUSES.Disconnected
 		self._disconnectedStats[tostring(player.UserId)] = playerState:Serialize()
 	end
-	self._playerStates[player] = nil
 
 	if state == Configs.GAME_STATES.RoundActive then
 		self:_fireEvent("PlayerStatusChanged", player, Configs.PLAYER_STATUSES.Disconnected)
@@ -92,6 +95,10 @@ function RoundSystem:OnPlayerDied(player: Player)
 	local playerState = self._playerStates[player]
 	if not playerState then
 		warn(`[RoundSystem] OnPlayerDied: no state found for {player.Name}`)
+		return
+	end
+	if playerState.status == Configs.PLAYER_STATUSES.Skipped then
+		warn(`[RoundSystem] OnPlayerDied: {player.Name} is Skipped; ignoring death (should have been impossible)`)
 		return
 	end
 	playerState:SetAlive(false)
@@ -165,6 +172,10 @@ function RoundSystem:Destroy()
 	if self._mapModel then
 		self._mapModel:Destroy()
 		self._mapModel = nil
+	end
+	if self._positioningDoneEvent then
+		self._positioningDoneEvent:Destroy()
+		self._positioningDoneEvent = nil
 	end
 end
 
