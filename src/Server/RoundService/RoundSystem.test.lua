@@ -114,6 +114,23 @@ do
 	check("TeamState: disconnectedPlayers = 1", snap.disconnectedPlayers == 1)
 end
 
+do
+	local p1 = mockPlayer("S1", 20)
+	local p2 = mockPlayer("S2", 21)
+
+	local playerStates = {}
+	playerStates[p1] = PlayerState.new(p1, 1)    -- Alive
+	playerStates[p2] = PlayerState.new(p2, 1)    -- Will be Skipped
+	playerStates[p2].status = Configs.PLAYER_STATUSES.Skipped
+
+	local ts = TeamState.new(1, { p1, p2 }, playerStates)
+	local snap = ts:Recalculate()
+
+	check("TeamState: Skipped does not count as alive", snap.alivePlayers == 1)
+	check("TeamState: Skipped exposed as skippedPlayers", snap.skippedPlayers == 1)
+	check("TeamState: Skipped counted in totalPlayerCount", snap.totalPlayerCount == 2)
+end
+
 -- ─── WinConditionEvaluator ────────────────────────────────────────────────────
 
 local function teamSnap(team: number, alive: number)
