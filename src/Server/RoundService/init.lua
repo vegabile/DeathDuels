@@ -16,6 +16,16 @@ local TeleportMetadataService = require(script.TeleportMetadataService)
 local RoundSystem = {}
 RoundSystem.__index = RoundSystem
 
+local function isTeamFullyDisconnected(teamSnapshot): boolean
+	if not teamSnapshot then
+		return false
+	end
+	if (teamSnapshot.originalPlayerCount or 0) <= 0 then
+		return false
+	end
+	return teamSnapshot.disconnectedPlayers >= teamSnapshot.originalPlayerCount
+end
+
 function RoundSystem.new(metadata: TeleportMetadata)
 	TeleportMetadataService.Initialize(metadata)
 
@@ -35,11 +45,19 @@ function RoundSystem.new(metadata: TeleportMetadata)
 	self._disconnectedStats = {} :: { [string]: any }
 	self._listeners = {} :: { [string]: { (...any) -> () } }
 	self._broadcastRemote = NetworkRouter:CreateRemoteEvent("RoundUpdate")
+	self._snapshotRemote = NetworkRouter:CreateRemoteFunction("RoundGetSnapshot")
 	self._waitTask = nil
 	self._roundTimerTask = nil
 	self._mapModel = nil
 	self._destroyed = false
 	self._positioningPlayers = false
+
+	NetworkRouter:Listen("RoundGetSnapshot", function(_player: Player)
+		if self._destroyed then
+			return nil
+		end
+		return self:GetSnapshot()
+	end)
 
 	self._stateMachine:SetTransitionCallback(function(from: string, to: string)
 		self:_onStateChanged(from, to)
@@ -57,6 +75,7 @@ function RoundSystem:RegisterPlayer(player: Player)
 	end
 	table.insert(self._pendingPlayers, player)
 	print(`[Round] {player.Name} registered ({#self._pendingPlayers}/{self._expectedPlayerCount})`)
+	self:_broadcastUpdate()
 	if #self._pendingPlayers >= self._expectedPlayerCount then
 		self:_transition(Configs.GAME_STATES.AssigningTeams)
 	end
@@ -68,6 +87,7 @@ function RoundSystem:UnregisterPlayer(player: Player)
 	if state == Configs.GAME_STATES.WaitingForPlayers then
 		local index = table.find(self._pendingPlayers, player)
 		if index then table.remove(self._pendingPlayers, index) end
+		self:_broadcastUpdate()
 		return
 	end
 
@@ -84,6 +104,8 @@ function RoundSystem:UnregisterPlayer(player: Player)
 		self:_fireEvent("PlayerStatusChanged", player, Configs.PLAYER_STATUSES.Disconnected)
 		self:_broadcastUpdate()
 		self:_checkWinCondition()
+	else
+		self:_broadcastUpdate()
 	end
 end
 
@@ -177,6 +199,10 @@ function RoundSystem:Destroy()
 		self._positioningDoneEvent:Destroy()
 		self._positioningDoneEvent = nil
 	end
+	if self._snapshotRemote then
+		self._snapshotRemote.OnServerInvoke = nil
+		self._snapshotRemote = nil
+	end
 end
 
 function RoundSystem:_transition(to: string)
@@ -191,11 +217,27 @@ function RoundSystem:_onStateChanged(from: string, to: string)
 end
 
 function RoundSystem:_checkWinCondition()
-	if self._positioningPlayers then return end
 	if not self._teamStates[1] or not self._teamStates[2] then return end
 	local t1 = self._teamStates[1]:Recalculate()
 	local t2 = self._teamStates[2]:Recalculate()
-	local roundOver, winningTeam = WinConditionEvaluator.isRoundOver(t1, t2)
+	local teamOneFullyDisconnected = isTeamFullyDisconnected(t1)
+	local teamTwoFullyDisconnected = isTeamFullyDisconnected(t2)
+
+	if self._positioningPlayers and not teamOneFullyDisconnected and not teamTwoFullyDisconnected then
+		return
+	end
+
+	local roundOver, winningTeam
+	if teamOneFullyDisconnected and teamTwoFullyDisconnected then
+		roundOver, winningTeam = true, nil
+	elseif teamOneFullyDisconnected then
+		roundOver, winningTeam = true, 2
+	elseif teamTwoFullyDisconnected then
+		roundOver, winningTeam = true, 1
+	else
+		roundOver, winningTeam = WinConditionEvaluator.isRoundOver(t1, t2)
+	end
+
 	if not roundOver then return end
 
 	if self._roundTimerTask then

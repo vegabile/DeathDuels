@@ -63,8 +63,6 @@ local function setupPlayer(player: Player)
 		end
 	end
 
-	roundSystem:RegisterPlayer(player)
-
 	--// Cosmetic waiting-area spawn. This CharacterAdded handler does NOT write
 	--// readiness facts — those are written exclusively by loadCharacterAndRecord.
 	player.CharacterAdded:Connect(function(character)
@@ -90,7 +88,15 @@ local function setupPlayer(player: Player)
 		end)
 	end)
 
-	player:LoadCharacter()
+	roundSystem:RegisterPlayer(player)
+
+	--// RegisterPlayer can synchronously advance into the round-start pipeline once
+	--// the expected roster is full. Only do the cosmetic waiting-room spawn if the
+	--// server is still actually waiting; otherwise this extra LoadCharacter would
+	--// overwrite the orchestrator's first-round placement for the last joiner.
+	if roundSystem:GetState() == Configs.GAME_STATES.WaitingForPlayers then
+		player:LoadCharacter()
+	end
 end
 
 Players.PlayerAdded:Connect(setupPlayer)

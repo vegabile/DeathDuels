@@ -1,6 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 
 local KnifeStateMachine = require(ReplicatedStorage.Knife.KnifeStateMachine)
@@ -12,8 +11,9 @@ local ClientEventBus = require(script.Parent.ClientEventBus)
 local InputPosition = require(script.Parent.InputPosition)
 local SFXController = require(script.Parent.SFXController)
 
-local DEBUG = Configs.DEBUG_MODE
-local debugPrint = DebugUtility.Print
+local function knifeTrace(message: string)
+	print("[KNIFE] " .. message)
+end
 
 local KnifeController = {}
 
@@ -27,7 +27,7 @@ local safetyTimeoutThread: thread? = nil
 
 function KnifeController.onKnifeEquipped()
 	knifeEquipped = true
-	debugPrint(DEBUG, `[KnifeController] Knife equipped`)
+	knifeTrace("onKnifeEquipped")
 
 	remoteName = `KnifeAction_{localPlayer.UserId}`
 
@@ -41,10 +41,11 @@ end
 
 function KnifeController.onKnifeUnequipped()
 	knifeEquipped = false
-	debugPrint(DEBUG, `[KnifeController] Knife unequipped`)
+	knifeTrace("onKnifeUnequipped")
 end
 
 function KnifeController.performAction(actionName: string)
+	knifeTrace(`performAction begin action={actionName} equipped={knifeEquipped} seq={sequenceId}`)
 	if not knifeEquipped then return end
 
 	local action = ActionRegistry.getAction(actionName)
@@ -52,35 +53,42 @@ function KnifeController.performAction(actionName: string)
 
 	local accepted = KnifeStateMachine.setActionActive(stateMachine, actionName)
 	if not accepted then
-		debugPrint(DEBUG, `[KnifeController] Action blocked by state machine`)
+		knifeTrace(`performAction blocked by state machine action={actionName}`)
 		return
 	end
 
 	sequenceId += 1
+	knifeTrace(`performAction accepted sequence={sequenceId} action={actionName}`)
 
 	local directionVector = nil
 	if actionName == "Throw" then
 		local character = localPlayer.Character
+		knifeTrace(`calculating throw direction for {localPlayer.Name}`)
 		local knifeTool = character and character:FindFirstChildWhichIsA("Tool")
 		local handle = knifeTool and knifeTool:FindFirstChild("Handle")
 		local targetPos = InputPosition.getInputPosition()
 		if handle and targetPos then
 			local delta = targetPos - handle.Position
+			knifeTrace(`throw delta magnitude={delta.Magnitude}`)
 			if delta.Magnitude < 0.01 then
 				KnifeStateMachine.resetAction(stateMachine, actionName)
+				knifeTrace("throw aborted: zero-length delta")
 				return
 			end
 			directionVector = delta.Unit
+			knifeTrace(`directionVector={directionVector}`)
 		end
 	end
 
 	action.clientExecute(stateMachine, directionVector)
+	knifeTrace(`clientExecute called for {actionName} dirExists={directionVector ~= nil}`)
 
 	NetworkRouter:Call(remoteName, {
 		desiredAction = actionName,
 		directionVector = directionVector,
 		sequenceId = sequenceId,
 	})
+	knifeTrace(`sent remote payload action={actionName} seq={sequenceId}`)
 
 	local thisSequence = sequenceId
 	if safetyTimeoutThread then
@@ -89,41 +97,44 @@ function KnifeController.performAction(actionName: string)
 	safetyTimeoutThread = task.delay(action.cooldown + Configs.SafetyTimeoutBuffer, function()
 		if sequenceId == thisSequence then
 			KnifeStateMachine.resetAction(stateMachine, actionName)
-			debugPrint(DEBUG, `[KnifeController] Safety timeout triggered for {actionName}`)
+			knifeTrace(`safety timeout triggered action={actionName} seq={sequenceId}`)
 		end
 	end)
 end
 
 function KnifeController._handleServerResponse(payload: any)
+	knifeTrace(`server response {payload and typeof(payload) or "nil"}`)
 	if type(payload) ~= "table" then return end
 
 	if payload.payloadType == "CooldownReset" then
+		knifeTrace(`CooldownReset action={payload.actionName}`)
 		KnifeStateMachine.resetAction(stateMachine, payload.actionName)
 		if safetyTimeoutThread then
 			task.cancel(safetyTimeoutThread)
 			safetyTimeoutThread = nil
 		end
-		debugPrint(DEBUG, `[KnifeController] Cooldown reset for {payload.actionName}`)
+		knifeTrace(`cooldown reset handled action={payload.actionName}`)
 
 	elseif payload.payloadType == "StateOverride" then
 		if payload.sequenceId and payload.sequenceId < sequenceId then
-			debugPrint(DEBUG, `[KnifeController] Ignoring stale StateOverride (seq {payload.sequenceId} < {sequenceId})`)
+			knifeTrace(`stale StateOverride ignored seq={payload.sequenceId} localSeq={sequenceId}`)
 			return
 		end
 		if type(payload.overriddenState) ~= "table" then
-			warn("[KnifeController] StateOverride missing overriddenState table")
+			warn("[KNIFE] [KnifeController] StateOverride missing overriddenState table")
 			return
 		end
 		stateMachine.isStabbing = payload.overriddenState.isStabbing == true
 		stateMachine.isThrowing = payload.overriddenState.isThrowing == true
+		knifeTrace(`state override set stab={stateMachine.isStabbing} throw={stateMachine.isThrowing}`)
 		if safetyTimeoutThread then
 			task.cancel(safetyTimeoutThread)
 			safetyTimeoutThread = nil
 		end
-		debugPrint(DEBUG, `[KnifeController] State overridden by server`)
+		knifeTrace("state overridden by server")
 
 	elseif payload.payloadType == "ProjectileHitConfirm" then
-		debugPrint(DEBUG, `[KnifeController] Hit confirmed for {payload.actionName}`)
+		knifeTrace(`ProjectileHitConfirm action={payload.actionName}`)
 		SFXController.playAt(SharedConfigs.HitSoundId, nil)
 		SFXController.playAt(SharedConfigs.StickSoundId, nil)
 		ClientEventBus:Fire("KnifeHitConfirmed", payload.actionName)

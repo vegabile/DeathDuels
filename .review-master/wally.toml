@@ -1,0 +1,8 @@
+[package]
+name = "monte/deathduels"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dependencies]
+ProfileService = "kampfkarren/profileservice@1.4.2"

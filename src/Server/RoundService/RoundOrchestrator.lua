@@ -165,6 +165,7 @@ local function exitSkippedOrPosition(system, player: Player, playerState, spawnP
 	local hrp = character:FindFirstChild("HumanoidRootPart")
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if hrp and hrp:IsA("BasePart") then
+		print(`[Round] exitSkippedOrPosition: teleporting {player.Name} to spawn part {spawnPart.Name} at {spawnPart.CFrame}`)
 		hrp.Anchored = false
 		hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
 	end
@@ -365,12 +366,14 @@ local function enterRoundActive(system)
 					--// Slow path (rounds 2+): intermission cleared char facts; re-load
 					--//                        with per-player LATE_TELEPORT_GRACE.
 					if not PlayerReadiness.isComplete(player) then
+						print(player.Name .. " is not ready, attempting late teleport with grace...")
 						local ready = loadCharacterAndRecord(player, Configs.LATE_TELEPORT_GRACE)
 						if not ready then
 							applySkipped(system, player, playerState)
 							return
 						end
 					end
+					print(`[Round] Positioning {player.Name} at spawn for team {teamNum} (late teleport: {not PlayerReadiness.isComplete(player)})`)
 					local loadout = TeleportMetadataService.GetLoadout(player.UserId)
 					exitSkippedOrPosition(system, player, playerState, spawnPart, loadout)
 				end)

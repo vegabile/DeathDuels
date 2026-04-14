@@ -1,6 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
-local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 
 local KnifeStateMachine = require(ReplicatedStorage.Knife.KnifeStateMachine)
@@ -13,8 +12,9 @@ local ServerTypes = require(script.Types)
 local ServerConfigs = require(script.Configs)
 local ActionRegistry = require(script.ActionRegistry)
 
-local DEBUG = ServerConfigs.DEBUG_MODE
-local debugPrint = DebugUtility.Print
+local function knifeTrace(message: string)
+	print("[KNIFE] " .. message)
+end
 
 local KnifeService = {}
 
@@ -30,9 +30,10 @@ function KnifeService._getRemoteName(player: Player): string
 end
 
 function KnifeService.OnPlayerAdded(player: Player)
-	debugPrint(DEBUG, `[KnifeService] OnPlayerAdded for {player.Name}`)
+	knifeTrace(`OnPlayerAdded {player.Name}`)
 
 	local remoteName = KnifeService._getRemoteName(player)
+	knifeTrace(`creating remote {remoteName}`)
 	NetworkRouter:CreateRemoteEvent(remoteName)
 
 	local state: ServerTypes.PlayerKnifeState = {
@@ -46,7 +47,7 @@ function KnifeService.OnPlayerAdded(player: Player)
 
 	local listenConnection = NetworkRouter:Listen(remoteName, function(firingPlayer, payload)
 		if firingPlayer ~= player then
-			warn(`[KnifeService] Remote spoofing detected: {firingPlayer.Name} on {player.Name}'s remote`)
+			warn(`[KNIFE] [KnifeService] Remote spoofing detected: {firingPlayer.Name} on {player.Name}'s remote`)
 			return
 		end
 		KnifeService._handleActionRequest(player, payload)
@@ -57,7 +58,7 @@ function KnifeService.OnPlayerAdded(player: Player)
 end
 
 function KnifeService.OnPlayerRemoving(player: Player)
-	debugPrint(DEBUG, `[KnifeService] OnPlayerRemoving for {player.Name}`)
+	knifeTrace(`OnPlayerRemoving {player.Name}`)
 
 	local state = playerStates[player]
 	if not state then return end
@@ -76,6 +77,7 @@ function KnifeService.OnPlayerRemoving(player: Player)
 end
 
 function KnifeService.OnPlayerDied(player: Player)
+	knifeTrace(`OnPlayerDied {player.Name}`)
 	local state = playerStates[player]
 	if not state then return end
 
@@ -94,56 +96,66 @@ function KnifeService._hasKnifeEquipped(player: Player): boolean
 end
 
 function KnifeService._handleActionRequest(player: Player, payload: any)
+	knifeTrace(`_handleActionRequest from {player.Name}`)
+	knifeTrace(`currentRoundState={currentRoundState}`)
 	if currentRoundState ~= RoundConfigs.GAME_STATES.RoundActive then
-		warn(`[KnifeService] Action rejected: round state is {currentRoundState}`)
+		warn(`[KNIFE] [KnifeService] Action rejected: round state is {currentRoundState}`)
 		return
 	end
 
 	local state = playerStates[player]
 	if not state then
-		warn(`[KnifeService] No state for {player.Name}`)
+		warn(`[KNIFE] [KnifeService] No state for {player.Name}`)
 		return
 	end
 
+	knifeTrace(`payload for {player.Name}: desired={payload and payload.desiredAction} seq={payload and payload.sequenceId}`)
 	local valid, reason = PayloadValidator.validate(payload)
 	if not valid then
-		warn(`[KnifeService] Invalid payload from {player.Name}: {reason}`)
+		warn(`[KNIFE] [KnifeService] Invalid payload from {player.Name}: {reason}`)
 		KnifeService._sendStateOverride(player, state, payload.sequenceId or 0)
 		return
 	end
 
 	if not KnifeService._hasKnifeEquipped(player) then
-		warn(`[KnifeService] {player.Name} has no knife equipped`)
+		warn(`[KNIFE] [KnifeService] {player.Name} has no knife equipped`)
 		KnifeService._sendStateOverride(player, state, payload.sequenceId)
 		return
 	end
 
 	local action = ActionRegistry.getAction(payload.desiredAction)
-	if not action then return end
+	if not action then
+		knifeTrace(`unknown action requested: {payload.desiredAction}`)
+		return
+	end
+	knifeTrace(`resolved action={action.name}`)
 
 	local now = tick()
 	local timeSinceLast = now - state.lastActionTimestamp
 	if timeSinceLast < (action.cooldown - ServerConfigs.RATE_LIMIT_BUFFER) then
-		warn(`[KnifeService] Rate limit: {player.Name} ({timeSinceLast}s since last)`)
+		warn(`[KNIFE] [KnifeService] Rate limit: {player.Name} ({timeSinceLast}s since last)`)
 		KnifeService._sendStateOverride(player, state, payload.sequenceId)
 		return
 	end
 
 	local accepted = KnifeStateMachine.setActionActive(state.stateMachine, action.name)
 	if not accepted then
-		debugPrint(DEBUG, `[KnifeService] {player.Name} action rejected: state locked`)
+		knifeTrace(`action rejected by state machine: {player.Name}`)
 		KnifeService._sendStateOverride(player, state, payload.sequenceId)
 		return
 	end
 
 	state.lastActionTimestamp = now
+	knifeTrace(`state lock set + timestamp updated for {action.name}`)
 
 	local directionVector = nil
 	if payload.directionVector then
 		directionVector = PayloadValidator.normalizeDirection(payload.directionVector)
+		knifeTrace(`normalized direction for {player.Name}: {directionVector}`)
 	end
 
 	action.serverExecute(player, state, directionVector)
+	knifeTrace(`serverExecute called for {action.name} by {player.Name}`)
 
 	task.delay(action.cooldown, function()
 		if playerStates[player] ~= state then return end
@@ -152,11 +164,12 @@ function KnifeService._handleActionRequest(player: Player, payload: any)
 			payloadType = "CooldownReset",
 			actionName = action.name,
 		})
-		debugPrint(DEBUG, `[KnifeService] Cooldown reset for {player.Name}: {action.name}`)
+		knifeTrace(`cooldown reset sent for {player.Name}:{action.name}`)
 	end)
 end
 
 function KnifeService._sendStateOverride(player: Player, state: ServerTypes.PlayerKnifeState, sequenceId: number)
+	knifeTrace(`send StateOverride {player.Name} seq={sequenceId}`)
 	NetworkRouter:Call(KnifeService._getRemoteName(player), player, {
 		payloadType = "StateOverride",
 		sequenceId = sequenceId,

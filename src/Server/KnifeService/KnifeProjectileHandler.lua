@@ -1,19 +1,21 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local ProjectileFactory = require(ReplicatedStorage.Knife.ProjectileFactory)
 
-local ServerConfigs = require(script.Parent.Configs)
-local DEBUG = ServerConfigs.DEBUG_MODE
-local debugPrint = DebugUtility.Print
+local function knifeTrace(message: string)
+	print("[KNIFE] " .. message)
+end
 
 local KnifeProjectileHandler = {}
 
 local function getOrCreateFolder(name: string): Folder
 	local folder = workspace:FindFirstChild(name)
 	if not folder then
+		knifeTrace(`creating folder {name}`)
 		folder = Instance.new("Folder")
 		folder.Name = name
 		folder.Parent = workspace
+	else
+		knifeTrace(`found existing folder {name}`)
 	end
 	return folder
 end
@@ -25,19 +27,24 @@ function KnifeProjectileHandler.spawnProjectile(
 	blacklistedInstancesAndDescendants: { Instance }?,
 	onHit: (hitPlayer: Player) -> ()
 )
+	knifeTrace(`spawnProjectile called for {player.Name}`)
 	local character = player.Character
 	if not character then
-		warn(`[KnifeProjectileHandler] No character for {player.Name}`)
+		warn(`[KNIFE] [KnifeProjectileHandler] No character for {player.Name}`)
 		return nil
 	end
+	knifeTrace(`character found for {player.Name}: {character.Name}`)
 
 	local rootPart = character:FindFirstChild("HumanoidRootPart")
 	if not rootPart then
-		warn(`[KnifeProjectileHandler] No HumanoidRootPart for {player.Name}`)
+		knifeTrace(`rootPart missing for {player.Name}`)
 		return nil
 	end
+	knifeTrace(`spawn template={projectileTemplate:GetFullName()} root={rootPart:GetFullName()}`)
+	knifeTrace(`incoming direction magnitude={directionVector.Magnitude}`)
 
 	local knifeFolder = getOrCreateFolder("KnifeIgnoreFolder")
+	knifeTrace("using KnifeIgnoreFolder for spawned handle")
 
 	local clonedHandle = ProjectileFactory.spawnProjectile({
 		template = projectileTemplate,
@@ -48,11 +55,12 @@ function KnifeProjectileHandler.spawnProjectile(
 	}, player, blacklistedInstancesAndDescendants, onHit)
 
 	if not clonedHandle then
-		warn(`[KnifeProjectileHandler] ProjectileFactory failed for {player.Name}`)
+		warn(`[KNIFE] [KnifeProjectileHandler] ProjectileFactory failed for {player.Name}`)
 		return nil
 	end
+	knifeTrace(`spawned cloned handle {clonedHandle:GetFullName()}`)
 
-	debugPrint(DEBUG, `[KnifeProjectileHandler] Spawned projectile for {player.Name}`)
+	knifeTrace(`ProjectileFactory spawn successful for {player.Name}`)
 
 	return clonedHandle
 end

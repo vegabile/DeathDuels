@@ -66,16 +66,18 @@ function PlayerReadiness.clearFact(player: any, factName: string)
 	ChangedSignal:Fire()
 end
 
-function PlayerReadiness.isComplete(player: any): boolean
+function PlayerReadiness.isComplete(player: Player): boolean
 	local rec = records[player]
 	if not rec then return false end
+	if not (player.Character and player.Character.PrimaryPart) then return false end --// FLAG: Refactor this into the existing pattern
 	for _, name in Configs.REQUIRED_FACTS do
 		if not rec.facts[name] then return false end
 	end
+
 	return true
 end
 
-function PlayerReadiness.missingFacts(player: any): { string }
+function PlayerReadiness.missingFacts(player: Player): { string }
 	local missing = {}
 	local rec = records[player]
 	for _, name in Configs.REQUIRED_FACTS do

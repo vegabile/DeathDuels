@@ -8,6 +8,18 @@ local defaultKnifeTemplate: Tool? = nil
 local gunTemplates: { [string]: Tool } = {}
 local defaultGunTemplate: Tool? = nil
 
+local function normalizeKnifeHandle(tool: Tool)
+	local h = tool:FindFirstChild("Handle")
+	if not h or not h:IsA("BasePart") then
+		warn(`[WeaponDistributor] {tool.Name} has no BasePart Handle to normalize`)
+		return
+	end
+
+	h.Massless = true
+	h.CanCollide = false
+	h.Anchored = false
+end
+
 local function ensureKnifeHitbox(tool: Tool)
 	if tool:FindFirstChild("Hitbox") then return end
 
@@ -85,6 +97,7 @@ function WeaponDistributor.init(knives: { Tool }, guns: { Tool }): boolean
 	end
 
 	for i, knife in knives do
+		normalizeKnifeHandle(knife)
 		ensureKnifeHitbox(knife)
 		knifeTemplates[knife.Name] = knife
 		if i == 1 then defaultKnifeTemplate = knife end
