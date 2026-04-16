@@ -113,12 +113,12 @@ snapshot.playerStates: {
 
 ## File Layout
 
-Follows the project service pattern (`init.lua` + `executor.*.lua` + `Types.lua` + `Configs.lua`):
+Pure logic + types live in `Shared/` (ReplicatedStorage) so integration tests can `require` them from the Studio command-bar context. Stateful controller + Roblox side effects live in `Client/`.
 
+- `src/Shared/Spectate/derive.lua` — pure `(snapshot, localUserId, prevTargetUserId) -> SpectateClientState`. Validates snapshot shape, computes state, emits `warn` on failure. No callbacks, no signals, no Roblox API calls beyond `warn`.
+- `src/Shared/Spectate/Types.lua` — exports `SpectateClientState`.
 - `src/Client/SpectateController/init.lua` — public API, stores state, applies derivation results, owns camera side effects, exposes `SelectTarget` / `SelectNext` / `SelectPrevious` / `Clear` / `GetState`. Camera and any UI references are injected through the constructor/`Init` rather than looked up globally, so tests can pass `nil`.
 - `src/Client/SpectateController/executor.client.lua` — resolves `Workspace.CurrentCamera`, wires `ClientEventBus:Connect("RoundUpdate")`, and any input bindings for next/prev target.
-- `src/Client/SpectateController/derive.lua` — pure `(snapshot, localUserId, prevTargetUserId) -> SpectateClientState`. No callbacks, no signals, no Roblox API calls.
-- `src/Client/SpectateController/Types.lua` — exports `SpectateClientState`.
 - `src/Client/SpectateController/Configs.lua` — input keys and any camera tunables.
 
 ## Failure Handling (consolidated)
