@@ -99,12 +99,12 @@ function SpectateController.GetState(): SpectateClientState
 end
 
 function SpectateController.SelectTarget(userId: number)
-	if not table.find(state.availableTargets, userId) then
-		warn(`[Spectate] SelectTarget({userId}): userId not in availableTargets; ignoring`)
-		return
-	end
 	if not state.canSpectate then
 		warn("[Spectate] SelectTarget called while canSpectate=false; ignoring")
+		return
+	end
+	if not table.find(state.availableTargets, userId) then
+		warn(`[Spectate] SelectTarget({userId}): userId not in availableTargets; ignoring`)
 		return
 	end
 	state.currentTargetUserId = userId
@@ -122,9 +122,14 @@ local function cycle(delta: number)
 		warn("[Spectate] cycle called with no availableTargets; ignoring")
 		return
 	end
-	local currentIdx = state.currentTargetUserId and table.find(list, state.currentTargetUserId) or 0
-	local nextIdx = ((currentIdx - 1 + delta) % #list) + 1
-	state.currentTargetUserId = list[nextIdx]
+	if state.currentTargetUserId == nil then
+		--// No prior target: Next picks first, Previous picks last.
+		state.currentTargetUserId = if delta > 0 then list[1] else list[#list]
+	else
+		local currentIdx = table.find(list, state.currentTargetUserId) or 1
+		local nextIdx = ((currentIdx - 1 + delta) % #list) + 1
+		state.currentTargetUserId = list[nextIdx]
+	end
 	state.isSpectating = true
 	applyCamera()
 end

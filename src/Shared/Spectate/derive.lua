@@ -71,7 +71,10 @@ local function derive(snapshot: any, localUserId: number, prevTargetUserId: numb
 
 	local selfEntry = players[localUserId]
 	if selfEntry == nil then
-		warn(`[Spectate.derive] local user {localUserId} absent from snapshot; failing closed`)
+		if isRoundActive then
+			--// Only noisy when it actually matters — absence is normal pre-round.
+			warn(`[Spectate.derive] local user {localUserId} absent from snapshot during active round; failing closed`)
+		end
 		local s = emptyState()
 		s.isRoundActive = isRoundActive
 		s.players = players
