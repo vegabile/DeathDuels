@@ -21,40 +21,63 @@ None new. `RoundSystem:_broadcastUpdate` already fires `RoundUpdate` (a full sna
 - Subscribe to `ClientEventBus:Connect("RoundUpdate")`.
 - Recompute `SpectateClientState` on every snapshot via `derive.lua` (pure).
 - Resolve target: keep prev if still valid; otherwise first available; otherwise `nil`.
-- If `availableTargets` is empty, end spectate (clear target, `isSpectating = false`, restore default camera). Do nothing else — the round lifecycle will end the match and teleport naturally.
-- Restore default camera whenever `canSpectate` flips false or `currentTargetUserId` becomes `nil`.
-- Camera: when `isSpectating`, set `Workspace.CurrentCamera.CameraSubject` to the target's `Humanoid`; otherwise set it to the local player's `Humanoid` if present, otherwise leave as-is.
-- Expose `SelectTarget(userId)`, `SelectNext()`, `SelectPrevious()`, `Clear()` for UI to call.
+- If `availableTargets` is empty, end spectate (clear target, `isSpectating = false`, restore camera to self). Do nothing else — the round lifecycle will end the match and teleport naturally.
+- Camera (always validate before touching): when `isSpectating`, look up the target `Player` via `Players:GetPlayerByUserId(currentTargetUserId)`, then check `target`, `target.Character`, and `target.Character:FindFirstChildOfClass("Humanoid")`. If any is missing, clear target, restore camera to self, `warn` the reason, and wait for the next snapshot to re-resolve. When not spectating, set `Workspace.CurrentCamera.CameraSubject` to the local player's `Humanoid` if it exists; otherwise set it to `nil`.
+- Expose `SelectTarget(userId)`, `SelectNext()`, `SelectPrevious()`, `Clear()` for UI to call. `SelectTarget` rejects a userId not in `availableTargets` via `warn` and returns without changing state.
 
 ## Rules / Derivation
 
 Inputs: `snapshot`, `localUserId`, `prevTargetUserId`.
 
+**Step 1 — validate snapshot.** If any of the following fail, return the "spectate off" state (all booleans false, `players = {}`, `availableTargets = {}`, `currentTargetUserId = nil`) and `warn` with the reason:
+
+- `snapshot` is a table
+- `snapshot.state` is a string
+- `snapshot.playerStates` is a table
+- every entry in `snapshot.playerStates` has a `Player` in `player`, a string `status`, a boolean `isInGame`, and a number `team`
+
+Malformed snapshots never enable spectate. Nothing is inferred from missing fields.
+
+**Step 2 — derive.**
+
 ```
 isRoundActive   = snapshot.state == "RoundActive"
 
-per player entry in snapshot.playerStates:
+per validated player entry:
   userId        = entry.player.UserId
+  team          = entry.team
   isInGame      = entry.isInGame
   isEliminated  = entry.status == "Dead"
 
-selfInGame      = players[localUserId].isInGame       -- false if absent
-selfEliminated  = players[localUserId].isEliminated   -- false if absent
+selfEntry       = players[localUserId]
+if selfEntry == nil:
+    -- fail closed: local user not in snapshot means we cannot decide
+    canSpectate = false, availableTargets = {}, currentTargetUserId = nil
 
-canSpectate     = isRoundActive and (selfEliminated or not selfInGame)
+else:
+    selfInGame      = selfEntry.isInGame
+    selfEliminated  = selfEntry.isEliminated
+    selfTeam        = selfEntry.team
 
-availableTargets = sorted asc userIds where
-                   isInGame and not isEliminated and userId ~= localUserId
+    canSpectate     = isRoundActive and (selfEliminated or not selfInGame)
 
-currentTargetUserId =
-    prevTargetUserId if prevTargetUserId is in availableTargets
-    else availableTargets[1]
-    else nil
+    availableTargets = userIds where
+                       isInGame and not isEliminated and userId ~= localUserId,
+                       ordered first by team-proximity (entries with
+                       team == selfTeam come before the rest), then by
+                       userId ascending within each group
+
+    currentTargetUserId =
+        prevTargetUserId if prevTargetUserId is in availableTargets
+        else availableTargets[1]
+        else nil
 
 isSpectating    = canSpectate and currentTargetUserId ~= nil
 ```
 
 When `canSpectate` is false, `currentTargetUserId` is forced to `nil` regardless of prior value.
+
+`SelectNext` / `SelectPrevious` cycle through `availableTargets` in its current order: all teammates first, then all opponents, wrapping at the ends.
 
 ## Client State Shape
 
@@ -63,9 +86,9 @@ export type SpectateClientState = {
     isRoundActive: boolean,
     selfInGame: boolean,
     selfEliminated: boolean,
-    players: { [number]: { isInGame: boolean, isEliminated: boolean } },
+    players: { [number]: { team: number, isInGame: boolean, isEliminated: boolean } },
     canSpectate: boolean,
-    availableTargets: { number },
+    availableTargets: { number },   -- teammates first (asc userId), then opponents (asc userId)
     currentTargetUserId: number?,
     isSpectating: boolean,
 }
@@ -80,6 +103,7 @@ snapshot.state: GameState                       -- "RoundActive" gates spectate
 snapshot.playerStates: {
     {
         player: Player,
+        team: number,
         status: "Alive" | "Dead" | "Disconnected" | "Skipped",
         isInGame: boolean,
         ...                                      -- other fields ignored
@@ -97,6 +121,17 @@ Follows the project service pattern (`init.lua` + `executor.*.lua` + `Types.lua`
 - `src/Client/SpectateController/Types.lua` — exports `SpectateClientState`.
 - `src/Client/SpectateController/Configs.lua` — input keys and any camera tunables.
 
+## Failure Handling (consolidated)
+
+Every failure path restores camera to self (local `Humanoid` if present, else `nil`), clears `currentTargetUserId`, sets `isSpectating = false`, and emits a `warn`:
+
+- Malformed snapshot (any shape-validation failure above).
+- Local user missing from `snapshot.playerStates`.
+- Target userId resolves to no `Player`, or `Player` has no `Character`, or `Character` has no `Humanoid`.
+- `SelectTarget` called with a userId not in `availableTargets`.
+
+Never silently return. Never fall back to "assume not in game".
+
 ## Testing
 
 Integration tests target `derive.lua`:
@@ -108,6 +143,8 @@ Integration tests target `derive.lua`:
 - Prev target still valid → retained.
 - Prev target invalidated → falls to first available.
 - All targets gone → `currentTargetUserId = nil`, `isSpectating = false`.
-- Snapshot with no entry for local user → `selfInGame = false`, `selfEliminated = false` (hence `canSpectate = true` while round active).
+- Local user absent from `snapshot.playerStates` → spectate-off state (`canSpectate = false`).
+- Malformed snapshots (non-table, missing `state`, missing `playerStates`, entry missing `team`/`status`/`isInGame`) → spectate-off state.
+- Target ordering: given teammates on team 1 `{101, 103}` and opponents on team 2 `{102, 104}` with local on team 1, `availableTargets == {103, 102, 104}` (teammates asc, then opponents asc).
 
 UI and `Workspace.CurrentCamera` are passed in as parameters; tests pass `nil` where the project's convention allows.
