@@ -174,7 +174,7 @@ local function createWeaponService(config)
 		NetworkRouter:Call(getRemoteName(player), player, {
 			payloadType = "StateOverride",
 			sequenceId = sequenceId,
-			overiddenState = StateMachine.serialize(state.stateMachine),
+			overriddenState = StateMachine.serialize(state.stateMachine),
 		})
 	end
 
