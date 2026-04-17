@@ -9,7 +9,7 @@ local _queueType: number = 0
 local _mapName: string = ""
 local _timestamp: number = 0
 local _initialized = false
-local _loadouts: { [string]: { knifeName: string?, gunName: string? } } = {}
+local _loadouts: { [string]: { knifeName: string?, gunName: string?, Power: string? } } = {}
 
 function TeleportMetadataService.Initialize(metadata: TeleportMetadata)
 	if _initialized then return end
@@ -56,7 +56,7 @@ function TeleportMetadataService.GetTimestamp(): number
 	return _timestamp
 end
 
-function TeleportMetadataService.GetLoadout(userId: number): { knifeName: string?, gunName: string? }?
+function TeleportMetadataService.GetLoadout(userId: number): { knifeName: string?, gunName: string?, Power: string? }?
 	return _loadouts[tostring(userId)]
 end
 

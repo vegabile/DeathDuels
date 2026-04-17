@@ -5,15 +5,18 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 local PayloadValidator = require(ReplicatedStorage.Power.PayloadValidator)
 local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
+local SharedTypes = require(ReplicatedStorage.Power.Types)
 
 local PowerService = require(script.Parent)
 local TeleportMetadataService = require(ServerScriptService.RoundService.TeleportMetadataService)
+
+type PowerResult = SharedTypes.PowerResult
 
 local function remoteName(player: Player): string
 	return `PowerAction_{player.UserId}`
 end
 
-local function fireResponse(player: Player, sequenceId: number, result: { success: boolean, reason: string? })
+local function fireResponse(player: Player, sequenceId: number, result: PowerResult)
 	NetworkRouter:Call(remoteName(player), player, {
 		sequenceId = sequenceId,
 		result     = result,
@@ -21,6 +24,10 @@ local function fireResponse(player: Player, sequenceId: number, result: { succes
 end
 
 local function setupPlayer(player: Player)
+	--// Guard against the PlayerAdded+startup-for-loop race: if an instance
+	--// already exists for this player, setup ran once — don't duplicate.
+	if PowerService.Get(player) ~= nil then return end
+
 	local name = remoteName(player)
 	NetworkRouter:CreateRemoteEvent(name)
 
@@ -61,5 +68,9 @@ end
 Players.PlayerRemoving:Connect(function(player)
 	local svc = PowerService.Get(player)
 	if svc then svc:Destroy() end
-	NetworkRouter:Remove(remoteName(player))
+
+	local name = remoteName(player)
+	local remote = NetworkRouter:Get(name)
+	NetworkRouter:Remove(name)
+	if remote then remote:Destroy() end
 end)
