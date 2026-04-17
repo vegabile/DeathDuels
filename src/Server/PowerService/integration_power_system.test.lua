@@ -36,10 +36,7 @@ end
 --// Fake Player supporting every field PowerService reads.
 local function mockPlayer(opts)
 	opts = opts or {}
-	local char, hum
-	if opts.hasCharacter ~= false then
-		char, hum = mockCharacter(opts.health or 100)
-	end
+	local char, hum = mockCharacter(opts.health or 100)
 	local player
 	player = {
 		Name = opts.name or "Tester",
@@ -53,6 +50,9 @@ local function mockPlayer(opts)
 	return player, hum
 end
 
+--// overrides.name must be lowercase — makeRegistry stores it verbatim while
+--// :Activate lowercases before lookup, so a mixed-case name would silently
+--// miss the registry.
 local function makePower(overrides)
 	overrides = overrides or {}
 	local calls = {}
