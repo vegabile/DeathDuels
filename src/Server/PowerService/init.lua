@@ -131,6 +131,7 @@ function PowerService._reset()
 		table.clear(svc._lastAttempt)
 	end
 	table.clear(instancesByPlayer)
+	currentRoundState = ""
 end
 
 return PowerService
