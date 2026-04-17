@@ -87,17 +87,22 @@ function ShootAction.serverExecute(player: Player, _playerState: any, directionV
 			if hitPlayer and hitPlayer ~= player and TeleportMetadataService.GetTeam(hitPlayer) ~= TeleportMetadataService.GetTeam(player) then
 				local humanoid = hitCharacter:FindFirstChildOfClass("Humanoid")
 				if humanoid then
-					humanoid:SetAttribute("LastDamageSource", player.UserId)
-					humanoid:TakeDamage(SharedConfigs.ShootDamage)
+					if hitPlayer:GetAttribute("ShieldActive") then
+						hitPlayer:SetAttribute("ShieldActive", nil)
+						debugPrint(DEBUG, `[ShootAction] ShieldActive absorbed shot on {hitPlayer.Name}`)
+					else
+						humanoid:SetAttribute("LastDamageSource", player.UserId)
+						humanoid:TakeDamage(SharedConfigs.ShootDamage)
+
+						debugPrint(DEBUG, `[ShootAction] {player.Name} shot {hitPlayer.Name}`)
+
+						local remoteName = `GunAction_{player.UserId}`
+						NetworkRouter:Call(remoteName, player, {
+							payloadType = "ProjectileHitConfirm",
+							actionName = "Shoot",
+						})
+					end
 				end
-
-				debugPrint(DEBUG, `[ShootAction] {player.Name} shot {hitPlayer.Name}`)
-
-				local remoteName = `GunAction_{player.UserId}`
-				NetworkRouter:Call(remoteName, player, {
-					payloadType = "ProjectileHitConfirm",
-					actionName = "Shoot",
-				})
 			end
 		end
 	end

@@ -67,8 +67,13 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 			playerState.alreadyHit[hitPlayer] = true
 			local humanoid = hitCharacter:FindFirstChildOfClass("Humanoid")
 			if humanoid then
-				humanoid:SetAttribute("LastDamageSource", player.UserId)
-				humanoid:TakeDamage(SharedConfigs.StabDamage)
+				if hitPlayer:GetAttribute("ShieldActive") then
+					hitPlayer:SetAttribute("ShieldActive", nil)
+					debugPrint(DEBUG, `[StabAction] ShieldActive absorbed stab on {hitPlayer.Name}`)
+				else
+					humanoid:SetAttribute("LastDamageSource", player.UserId)
+					humanoid:TakeDamage(SharedConfigs.StabDamage)
+				end
 			end
 
 			debugPrint(DEBUG, `[StabAction] {player.Name} stabbed {hitPlayer.Name}`)
