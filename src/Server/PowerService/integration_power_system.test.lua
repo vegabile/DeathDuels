@@ -37,6 +37,7 @@ end
 local function mockPlayer(opts)
 	opts = opts or {}
 	local char, hum = mockCharacter(opts.health or 100)
+	local attributes = {}
 	local player
 	player = {
 		Name = opts.name or "Tester",
@@ -45,6 +46,12 @@ local function mockPlayer(opts)
 		IsDescendantOf = function(self, container)
 			if opts.inGame == false then return false end
 			return container == game:GetService("Players")
+		end,
+		SetAttribute = function(self, key, value)
+			attributes[key] = value
+		end,
+		GetAttribute = function(self, key)
+			return attributes[key]
 		end,
 	}
 	return player, hum
@@ -290,6 +297,45 @@ do
 
 	local result = svc:Activate("dash", {})
 	check("14. mixed-case .Power resolves", result.success == true)
+end
+
+--// ─── Case 15: EquippedPower attribute set on resolved loadout ─────────────
+
+do
+	freshSession()
+	local power = makePower({ name = "testpower" })
+	local registry = makeRegistry({ power })
+	local player = mockPlayer()
+	PowerService.new(player, { Power = "testpower" }, registry)
+
+	check("15. EquippedPower attribute set",
+		player:GetAttribute("EquippedPower") == "testpower")
+end
+
+--// ─── Case 16: EquippedPower attribute nil when loadout missing ───────────
+
+do
+	freshSession()
+	local registry = makeRegistry({})
+	local player = mockPlayer()
+	PowerService.new(player, nil, registry)
+
+	check("16. EquippedPower nil on missing loadout",
+		player:GetAttribute("EquippedPower") == nil)
+end
+
+--// ─── Case 17: EquippedPower cleared on :Destroy ──────────────────────────
+
+do
+	freshSession()
+	local power = makePower({ name = "testpower" })
+	local registry = makeRegistry({ power })
+	local player = mockPlayer()
+	local svc = PowerService.new(player, { Power = "testpower" }, registry)
+
+	svc:Destroy()
+	check("17. EquippedPower cleared on Destroy",
+		player:GetAttribute("EquippedPower") == nil)
 end
 
 print(`\n{passed} passed, {failed} failed`)
