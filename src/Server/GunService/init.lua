@@ -114,7 +114,10 @@ function GunService._handleActionRequest(player: Player, payload: any)
 	end
 
 	local action = ActionRegistry.getAction(payload.desiredAction)
-	if not action then return end
+	if not action then
+		warn(`[GunService] Unknown action requested: {payload.desiredAction}`)
+		return
+	end
 
 	local gunMult = player:GetAttribute("GunCooldownMult") or 1
 	local effectiveCooldown = action.cooldown * gunMult

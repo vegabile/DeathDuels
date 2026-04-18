@@ -73,10 +73,9 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 				else
 					humanoid:SetAttribute("LastDamageSource", player.UserId)
 					humanoid:TakeDamage(SharedConfigs.StabDamage)
+					debugPrint(DEBUG, `[StabAction] {player.Name} stabbed {hitPlayer.Name}`)
 				end
 			end
-
-			debugPrint(DEBUG, `[StabAction] {player.Name} stabbed {hitPlayer.Name}`)
 		end
 	end)
 end

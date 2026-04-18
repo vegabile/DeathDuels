@@ -65,27 +65,11 @@ do
 	KnifeService.OnPlayerRemoving(p)
 end
 
---// ─── Case B: KnifeService CombatDisabled cleared allows subsequent flow ─
-
-do
-	captured = {}
-	local p = mockPlayer("KnifeFollowup", 10002)
-	KnifeService.OnPlayerAdded(p)
-
-	p:SetAttribute("CombatDisabled", nil)
-	KnifeService._handleActionRequest(p, { desiredAction = "Stab", sequenceId = 1 })
-
-	local reached = false
-	for _, c in captured do
-		if c.payload and c.payload.payloadType == "StateOverride" and c.payload.sequenceId == 1 then
-			reached = true
-			break
-		end
-	end
-	check("B1. KnifeService with CombatDisabled=nil proceeds past guard", reached)
-
-	KnifeService.OnPlayerRemoving(p)
-end
+--// Note: a "CombatDisabled=nil allows action" case is intentionally omitted.
+--// Both the guard and downstream rejections emit StateOverride, so absence of
+--// the guard cannot be proven from captured payloads alone. End-to-end behavior
+--// is covered by the Dash power integration test (which sets and clears the
+--// attribute) and by live-session manual play.
 
 --// ─── Case C: GunService CombatDisabled blocks action ────────────────────
 
