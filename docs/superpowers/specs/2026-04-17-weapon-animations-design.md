@@ -222,11 +222,17 @@ State machine unlock + safety timeout mirror the current design (action cooldown
 
 ### 5.2 Stab
 
-No windup/release. Client plays the stab animation (if the ID is non-blank). Server authoritatively enables a `.Touched` connection on the knife's existing `Hitbox` for a fixed `StabHitWindow` duration (new config field in `Shared/Knife/Configs.lua`, default `1.0` — tune to match the authored animation length when it lands). Any non-ally `Player`'s character that touches the hitbox during that window is killed (`Humanoid.Health = 0`, `LastDamageSource` attribute set to attacker's UserId). One victim per stab via an `alreadyHit` set. The `.Touched` connection is torn down when the window expires (`task.delay(StabHitWindow, ...)`).
+No windup/release. Client plays the stab animation (if the ID is non-blank). Server authoritatively opens an overlap-query hit window on the knife's existing `Hitbox` for a fixed `StabHitWindow` duration (new config field in `Shared/Knife/Configs.lua`, default `1.0` — tune to match the authored animation length when it lands).
+
+**Primary detection — `workspace:GetPartsInPart(hitbox, overlapParams)` in a `RunService.Heartbeat` loop.** This is what Roblox recommends for reliable overlap checks; `.Touched` alone is weak because (a) it does not fire for parts that were already intersecting when the connection opened, and (b) its reliability depends on collision-group and CanTouch settings. The Heartbeat loop runs every frame for the duration of `StabHitWindow` and iterates the overlap results.
+
+**Optional supplement — `.Touched` connection on `Hitbox` for the same window.** Kept as a secondary safety net because it fires synchronously when physics contact is made (catches fast-moving victims that could theoretically pass through a sparse Heartbeat sample). Both paths feed into the same `alreadyHit` set so a player can only be stabbed once per window.
+
+On any valid hit, the victim is killed: `Humanoid.Health = 0`, `Humanoid:SetAttribute("LastDamageSource", attackerUserId)`. Ally/self/team filtering matches the current pattern via `TeleportMetadataService.GetTeam(...)`. At the end of the window (`task.delay(StabHitWindow, ...)` or equivalent Heartbeat deadline check), both the Heartbeat connection and Touched connection are torn down and `alreadyHit` is cleared.
 
 Why a static window instead of deriving from animation length: the server has no animation context (animations replicate, but reading the client's `AnimationTrack.Length` on the server is fragile and adds coupling for a feature the user labelled "cosmetic"). A static config value is simpler and fully server-owned. When the animation is authored and its length known, update `StabHitWindow` to match.
 
-Client implementation: plays animation only. No `.Touched` handling on the client; the server owns the hit window.
+Client implementation: plays animation only. Neither overlap queries nor Touched handling on the client; the server owns the hit window.
 
 ### 5.3 Shoot chain (Small Pistol)
 
