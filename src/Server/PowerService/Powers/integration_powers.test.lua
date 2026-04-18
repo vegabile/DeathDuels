@@ -123,4 +123,26 @@ do
 	destroyCharacter(char)
 end
 
+--// ─── Case: Launch ────────────────────────────────────────────────────────
+
+do
+	freshSession()
+	local LaunchPower = require(ServerScriptService.PowerService.Powers.Launch)
+	local registry = makeRegistry(LaunchPower)
+	local char = buildCharacter("LaunchChar")
+	local player = mockPlayer({ name = "Launcher", character = char })
+	local svc = PowerService.new(player, { Power = "launch" }, registry)
+
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local baseJump = hum.JumpPower
+	local r = svc:Activate("launch", {})
+	check("Launch.1 accepted", r.success == true)
+	check("Launch.2 JumpPower elevated mid-duration", hum.JumpPower > baseJump + 0.01)
+
+	task.wait(3.1)
+	check("Launch.3 JumpPower restored after duration", math.abs(hum.JumpPower - baseJump) < 0.01)
+
+	destroyCharacter(char)
+end
+
 print(`\n{passed} passed, {failed} failed`)
