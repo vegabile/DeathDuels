@@ -131,7 +131,7 @@ function GunService._handleActionRequest(player: Player, payload: any)
 		directionVector = PayloadValidator.normalizeDirection(payload.directionVector)
 	end
 
-	action.serverExecute(player, state, directionVector)
+	action.serverExecute(player, state, directionVector, payload.restOrigin)
 
 	task.delay(action.cooldown, function()
 		if playerStates[player] ~= state then return end

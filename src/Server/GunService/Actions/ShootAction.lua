@@ -6,8 +6,8 @@ local SharedConfigs = require(ReplicatedStorage.Gun.Configs)
 local AnimationType = require(ReplicatedStorage.Animations.AnimationType)
 local AnimationProfile = require(ReplicatedStorage.Animations.AnimationProfile)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
-local GunUtility = require(ReplicatedStorage.Gun.GunUtility)
 
+local AnimationsConfigs = require(game:GetService("ReplicatedStorage").Animations.Configs)
 local ServerConfigs = require(script.Parent.Parent.Configs)
 local TeleportMetadataService = require(script.Parent.Parent.Parent.RoundService.TeleportMetadataService)
 local DEBUG = ServerConfigs.DEBUG_MODE
@@ -40,41 +40,39 @@ local function drawTracer(origin: Vector3, hitPos: Vector3)
 	Debris:AddItem(tracer, SharedConfigs.TracerDuration)
 end
 
-function ShootAction.serverExecute(player: Player, _playerState: any, directionVector: Vector3?)
+function ShootAction.serverExecute(
+	player: Player,
+	_playerState: any,
+	directionVector: Vector3?,
+	restOrigin: Vector3?
+)
 	if not directionVector then
-		warn(`[ShootAction] Shoot requires directionVector from {player.Name}`)
+		warn(`[ShootAction] missing directionVector for {player.Name}`)
+		return
+	end
+	if not restOrigin then
+		warn(`[ShootAction] missing restOrigin for {player.Name}`)
 		return
 	end
 
 	local character = player.Character
 	if not character then
-		warn(`[ShootAction] No character for {player.Name}`)
+		warn(`[ShootAction] no character for {player.Name}`)
 		return
 	end
-
-	local gunTool = GunUtility.findGunTool(character)
-	if not gunTool then
-		warn(`[ShootAction] No gun tool found for: {player.Name}`)
-		return
-	end
-
-	local handle = gunTool:FindFirstChild("Handle")
-	if not handle then return end
-
-	local shootPoint = handle:FindFirstChild("ShootPoint")
-	if not shootPoint then
-		warn(`[ShootAction] No ShootPoint attachment on gun handle for: {player.Name}`)
-		return
-	end
-
-	local origin = shootPoint.WorldPosition
-	local direction = directionVector.Unit
-
 	local rootPart = character:FindFirstChild("HumanoidRootPart")
-	if rootPart and (origin - rootPart.Position).Magnitude > SharedConfigs.MAX_SHOOT_ORIGIN_DISTANCE then
-		warn(`[ShootAction] Shoot origin too far from character for {player.Name}`)
+	if not rootPart then
+		warn(`[ShootAction] no HumanoidRootPart for {player.Name}`)
 		return
 	end
+
+	if (restOrigin - rootPart.Position).Magnitude > AnimationsConfigs.MaxRestOriginDistance then
+		warn(`[ShootAction] restOrigin out of range for {player.Name}`)
+		return
+	end
+
+	local direction = directionVector.Unit
+	local origin = restOrigin
 
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -89,7 +87,9 @@ function ShootAction.serverExecute(player: Player, _playerState: any, directionV
 		local hitCharacter = result.Instance:FindFirstAncestorOfClass("Model")
 		if hitCharacter then
 			local hitPlayer = Players:GetPlayerFromCharacter(hitCharacter)
-			if hitPlayer and hitPlayer ~= player and TeleportMetadataService.GetTeam(hitPlayer) ~= TeleportMetadataService.GetTeam(player) then
+			if hitPlayer and hitPlayer ~= player
+				and TeleportMetadataService.GetTeam(hitPlayer) ~= TeleportMetadataService.GetTeam(player)
+			then
 				local humanoid = hitCharacter:FindFirstChildOfClass("Humanoid")
 				if humanoid then
 					humanoid:SetAttribute("LastDamageSource", player.UserId)
