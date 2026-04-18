@@ -210,4 +210,30 @@ do
 	destroyCharacter(char)
 end
 
+--// ─── Case: Adrenaline ────────────────────────────────────────────────────
+
+do
+	freshSession()
+	local AdrPower = require(ServerScriptService.PowerService.Powers.Adrenaline)
+	local registry = makeRegistry(AdrPower)
+	local char = buildCharacter("AdrChar")
+	local player = mockPlayer({ name = "Adrenalized", character = char })
+	local svc = PowerService.new(player, { Power = "adrenaline" }, registry)
+
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local baseSpeed = hum.WalkSpeed
+	local r = svc:Activate("adrenaline", {})
+	check("Adrenaline.1 accepted", r.success == true)
+	check("Adrenaline.2 WalkSpeed elevated", hum.WalkSpeed > baseSpeed + 0.01)
+	check("Adrenaline.3 KnifeCooldownMult set", player:GetAttribute("KnifeCooldownMult") == 0.7)
+	check("Adrenaline.4 GunCooldownMult set", player:GetAttribute("GunCooldownMult") == 0.7)
+
+	task.wait(5.1)
+	check("Adrenaline.5 WalkSpeed restored", math.abs(hum.WalkSpeed - baseSpeed) < 0.01)
+	check("Adrenaline.6 KnifeCooldownMult cleared", player:GetAttribute("KnifeCooldownMult") == nil)
+	check("Adrenaline.7 GunCooldownMult cleared", player:GetAttribute("GunCooldownMult") == nil)
+
+	destroyCharacter(char)
+end
+
 print(`\n{passed} passed, {failed} failed`)
