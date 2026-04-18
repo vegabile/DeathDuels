@@ -151,10 +151,9 @@ function KnifeService._handleActionRequest(player: Player, payload: any)
 	local directionVector = nil
 	if payload.directionVector then
 		directionVector = PayloadValidator.normalizeDirection(payload.directionVector)
-		knifeTrace(`normalized direction for {player.Name}: {directionVector}`)
 	end
 
-	action.serverExecute(player, state, directionVector)
+	action.serverExecute(player, state, directionVector, payload.restOrigin, payload.spawnCFrame)
 	knifeTrace(`serverExecute called for {action.name} by {player.Name}`)
 
 	task.delay(action.cooldown, function()
