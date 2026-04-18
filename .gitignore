@@ -13,5 +13,8 @@
 /*.rbxm
 /*.rbxmx
 
+# Worktrees
+/.worktrees
+
 # Misc
 .DS_Store

@@ -80,6 +80,12 @@ function ThrowAction.serverExecute(player: Player, playerState: any, directionVe
 		knifeTrace(`callback hitPlayer={hitPlayer.Name}`)
 		if TeleportMetadataService.GetTeam(hitPlayer) == TeleportMetadataService.GetTeam(player) then return end
 
+		if hitPlayer:GetAttribute("ShieldActive") then
+			hitPlayer:SetAttribute("ShieldActive", nil)
+			knifeTrace(`ShieldActive absorbed throw on {hitPlayer.Name}`)
+			return
+		end
+
 		local humanoid = hitPlayer.Character and hitPlayer.Character:FindFirstChildOfClass("Humanoid")
 		if humanoid then
 			humanoid:SetAttribute("LastDamageSource", player.UserId)
