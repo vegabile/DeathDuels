@@ -6,6 +6,8 @@ return {
 	ValidActions = { "Shoot", "Reload" },
 	MaxDirectionMagnitude = 1.1,
 	ShootCooldown = 5,
+	--// Floor cooldown value in seconds. Client effective cooldown is
+	--// max(reloadAnimLength, ReloadCooldown); the floor governs server rate-limiting.
 	ReloadCooldown = 5,
 	ShootDamage = 100,
 	ShootSoundId = "",
