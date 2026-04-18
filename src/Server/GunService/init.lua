@@ -87,6 +87,13 @@ function GunService._handleActionRequest(player: Player, payload: any)
 		return
 	end
 
+	if player:GetAttribute("CombatDisabled") then
+		warn(`[GunService] CombatDisabled on {player.Name} — rejecting action`)
+		local state = playerStates[player]
+		if state then GunService._sendStateOverride(player, state, (payload and payload.sequenceId) or 0) end
+		return
+	end
+
 	local state = playerStates[player]
 	if not state then
 		warn(`[GunService] No state for {player.Name}`)
@@ -107,11 +114,16 @@ function GunService._handleActionRequest(player: Player, payload: any)
 	end
 
 	local action = ActionRegistry.getAction(payload.desiredAction)
-	if not action then return end
+	if not action then
+		warn(`[GunService] Unknown action requested: {payload.desiredAction}`)
+		return
+	end
 
+	local gunMult = player:GetAttribute("GunCooldownMult") or 1
+	local effectiveCooldown = action.cooldown * gunMult
 	local now = tick()
 	local timeSinceLast = now - state.lastActionTimestamp
-	if timeSinceLast < (action.cooldown - ServerConfigs.RATE_LIMIT_BUFFER) then
+	if timeSinceLast < (effectiveCooldown - ServerConfigs.RATE_LIMIT_BUFFER) then
 		warn(`[GunService] Rate limit: {player.Name} ({timeSinceLast}s since last)`)
 		GunService._sendStateOverride(player, state, payload.sequenceId)
 		return
@@ -133,7 +145,7 @@ function GunService._handleActionRequest(player: Player, payload: any)
 
 	action.serverExecute(player, state, directionVector, payload.restOrigin)
 
-	task.delay(action.cooldown, function()
+	task.delay(effectiveCooldown, function()
 		if playerStates[player] ~= state then return end
 		GunStateMachine.resetAction(state.stateMachine, action.name)
 		NetworkRouter:Call(GunService._getRemoteName(player), player, {

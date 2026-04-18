@@ -89,15 +89,21 @@ function ThrowAction.serverExecute(
 		table.insert(blacklist, clientKnifeProjectiles)
 	end
 
-	--// Broadcast to other players with effectiveSpawnCFrame for visual consistency.
-	for _, otherPlayer in Players:GetPlayers() do
-		if otherPlayer ~= player then
-			NetworkRouter:Call("KnifeThrowBroadcast", otherPlayer, {
-				throwerUserId = player.UserId,
-				knifeName = knifeTool.Name,
-				spawnCFrame = effectiveSpawnCFrame,
-				directionVector = directionVector,
-			})
+	KnifeProjectileHandler.spawnProjectile(player, directionVector, knifeTool, blacklist, function(hitPlayer)
+		knifeTrace(`callback hitPlayer={hitPlayer.Name}`)
+		if TeleportMetadataService.GetTeam(hitPlayer) == TeleportMetadataService.GetTeam(player) then return end
+
+		if hitPlayer:GetAttribute("ShieldActive") then
+			hitPlayer:SetAttribute("ShieldActive", nil)
+			knifeTrace(`ShieldActive absorbed throw on {hitPlayer.Name}`)
+			return
+		end
+
+		local humanoid = hitPlayer.Character and hitPlayer.Character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid:SetAttribute("LastDamageSource", player.UserId)
+			humanoid:TakeDamage(SharedConfigs.ThrowDamage)
+			knifeTrace(`damaged {hitPlayer.Name} for {SharedConfigs.ThrowDamage}`)
 		end
 	end
 

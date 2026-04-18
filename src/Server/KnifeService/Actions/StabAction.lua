@@ -98,8 +98,33 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 		local parts = workspace:GetPartsInPart(currentHitbox, overlapParams)
 		for _, part in parts do
 			local hitCharacter = part:FindFirstAncestorOfClass("Model")
-			local hitPlayer = hitCharacter and Players:GetPlayerFromCharacter(hitCharacter)
-			processHitPlayer(player, playerState, hitPlayer, hitCharacter)
+			if not hitCharacter then continue end
+
+			local hitPlayer = Players:GetPlayerFromCharacter(hitCharacter)
+			if not hitPlayer then continue end
+			if hitPlayer == player then continue end
+			if TeleportMetadataService.GetTeam(hitPlayer) == TeleportMetadataService.GetTeam(player) then continue end
+			if playerState.alreadyHit[hitPlayer] then continue end
+
+			if attackerRoot then
+				local victimRoot = hitCharacter:FindFirstChild("HumanoidRootPart")
+				if victimRoot and (attackerRoot.Position - victimRoot.Position).Magnitude > SharedConfigs.MAX_STAB_DISTANCE then
+					continue
+				end
+			end
+
+			playerState.alreadyHit[hitPlayer] = true
+			local humanoid = hitCharacter:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				if hitPlayer:GetAttribute("ShieldActive") then
+					hitPlayer:SetAttribute("ShieldActive", nil)
+					debugPrint(DEBUG, `[StabAction] ShieldActive absorbed stab on {hitPlayer.Name}`)
+				else
+					humanoid:SetAttribute("LastDamageSource", player.UserId)
+					humanoid:TakeDamage(SharedConfigs.StabDamage)
+					debugPrint(DEBUG, `[StabAction] {player.Name} stabbed {hitPlayer.Name}`)
+				end
+			end
 		end
 	end)
 	--// Keep compatibility with KnifeService.OnPlayerDied cleanup.

@@ -107,6 +107,13 @@ function KnifeService._handleActionRequest(player: Player, payload: any)
 		return
 	end
 
+	if player:GetAttribute("CombatDisabled") then
+		warn(`[KNIFE] [KnifeService] CombatDisabled on {player.Name} — rejecting action`)
+		local state = playerStates[player]
+		if state then KnifeService._sendStateOverride(player, state, (payload and payload.sequenceId) or 0) end
+		return
+	end
+
 	local state = playerStates[player]
 	if not state then
 		warn(`[KNIFE] [KnifeService] No state for {player.Name}`)
@@ -134,9 +141,11 @@ function KnifeService._handleActionRequest(player: Player, payload: any)
 	end
 	knifeTrace(`resolved action={action.name}`)
 
+	local knifeMult = player:GetAttribute("KnifeCooldownMult") or 1
+	local effectiveCooldown = action.cooldown * knifeMult
 	local now = tick()
 	local timeSinceLast = now - state.lastActionTimestamp
-	if timeSinceLast < (action.cooldown - ServerConfigs.RATE_LIMIT_BUFFER) then
+	if timeSinceLast < (effectiveCooldown - ServerConfigs.RATE_LIMIT_BUFFER) then
 		warn(`[KNIFE] [KnifeService] Rate limit: {player.Name} ({timeSinceLast}s since last)`)
 		KnifeService._sendStateOverride(player, state, payload.sequenceId)
 		return
@@ -160,7 +169,7 @@ function KnifeService._handleActionRequest(player: Player, payload: any)
 	action.serverExecute(player, state, directionVector, payload.restOrigin, payload.spawnCFrame)
 	knifeTrace(`serverExecute called for {action.name} by {player.Name}`)
 
-	task.delay(action.cooldown, function()
+	task.delay(effectiveCooldown, function()
 		if playerStates[player] ~= state then return end
 		KnifeStateMachine.resetAction(state.stateMachine, action.name)
 		NetworkRouter:Call(KnifeService._getRemoteName(player), player, {

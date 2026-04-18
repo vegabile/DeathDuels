@@ -10,6 +10,8 @@ local SharedTypes = require(ReplicatedStorage.Power.Types)
 local PowerService = require(script.Parent)
 local TeleportMetadataService = require(ServerScriptService.RoundService.TeleportMetadataService)
 
+NetworkRouter:CreateRemoteEvent("PowerBroadcast")
+
 type PowerResult = SharedTypes.PowerResult
 
 local function remoteName(player: Player): string
