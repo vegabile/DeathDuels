@@ -14,11 +14,11 @@ function Sprint.validatePayload(payload: any): (boolean, string?)
 	return true, nil
 end
 
-function Sprint:Execute(player: Player, _payload: any)
+function Sprint:Execute(player: Player, _payload: any): boolean
 	local char = player.Character
-	if not char then warn(`[Sprint] No character for {player.Name}`); return end
+	if not char then warn(`[Sprint] No character for {player.Name}`); return false end
 	local hum = char:FindFirstChildOfClass("Humanoid")
-	if not hum then warn(`[Sprint] No Humanoid for {player.Name}`); return end
+	if not hum then warn(`[Sprint] No Humanoid for {player.Name}`); return false end
 
 	local baseSpeed = hum.WalkSpeed
 	hum.WalkSpeed = baseSpeed * cfg.speedMult
@@ -28,6 +28,8 @@ function Sprint:Execute(player: Player, _payload: any)
 			hum.WalkSpeed = baseSpeed
 		end
 	end)
+
+	return true
 end
 
 return Sprint

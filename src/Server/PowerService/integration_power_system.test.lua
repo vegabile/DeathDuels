@@ -63,6 +63,7 @@ local function makePower(overrides)
 	}
 	function power:Execute(player, payload)
 		table.insert(calls, { player = player, payload = payload })
+		return true
 	end
 	power._calls = calls
 	return power

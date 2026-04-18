@@ -112,12 +112,25 @@ function PowerService:Activate(powerName: string, payload: any): PowerResult
 		return { success = false, reason = Reasons.OnCooldown }
 	end
 
-	--// 7. Lock == cooldown — start cooldown BEFORE handoff
-	self._cooldowns[requested.name] = now + requested.cooldown
+	--// 7. Stamp attempt; cooldown is charged AFTER a successful Execute (see 9).
 	self._lastAttempt[requested.name] = now
 
-	--// 8. Handoff — fire-and-forget, no pcall
-	requested:Execute(self.player, payload)
+	--// 8. Handoff — protected. A thrown power cannot corrupt the activation path,
+	--// and a power that declines to fire (missing prerequisites inside Execute)
+	--// does not burn the player's cooldown.
+	local ok, applied = pcall(function()
+		return requested:Execute(self.player, payload)
+	end)
+	if not ok then
+		warn(`[POWER] Execute threw for '{requested.name}': {applied}`)
+		return { success = false, reason = Reasons.InvalidState }
+	end
+	if applied ~= true then
+		return { success = false, reason = Reasons.InvalidState }
+	end
+
+	--// 9. Effect applied — charge cooldown now
+	self._cooldowns[requested.name] = now + requested.cooldown
 
 	return { success = true, reason = nil }
 end

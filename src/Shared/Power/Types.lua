@@ -7,7 +7,7 @@ export type Power = {
 	name: string,
 	cooldown: number,
 	validatePayload: (payload: any) -> (boolean, PowerFailReason?),
-	Execute: (self: Power, player: Player, payload: any) -> (),
+	Execute: (self: Power, player: Player, payload: any) -> boolean,
 }
 
 export type ActivateRequest  = { powerName: string, payload: any, sequenceId: number }

@@ -51,11 +51,11 @@ local function pickTarget(player: Player, originCFrame: CFrame): (Player?, Vecto
 	return nil, lookVec
 end
 
-function Blinding:Execute(player: Player, _payload: any)
+function Blinding:Execute(player: Player, _payload: any): boolean
 	local char = player.Character
-	if not char then warn(`[Blinding] No character for {player.Name}`); return end
+	if not char then warn(`[Blinding] No character for {player.Name}`); return false end
 	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp or not hrp:IsA("BasePart") then warn(`[Blinding] No HRP for {player.Name}`); return end
+	if not hrp or not hrp:IsA("BasePart") then warn(`[Blinding] No HRP for {player.Name}`); return false end
 
 	local targetPlayer, direction = pickTarget(player, hrp.CFrame)
 
@@ -94,6 +94,8 @@ function Blinding:Execute(player: Player, _payload: any)
 	if targetPlayer == nil then
 		warn(`[Blinding] No enemy in aim-assist cone; firing straight for {player.Name}`)
 	end
+
+	return true
 end
 
 return Blinding
