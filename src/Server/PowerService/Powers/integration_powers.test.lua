@@ -308,4 +308,54 @@ do
 	destroyCharacter(char)
 end
 
+
+--// ─── Case: Reveal ────────────────────────────────────────────────────────
+
+do
+	freshSession()
+	local RevealPower = require(ServerScriptService.PowerService.Powers.Reveal)
+	local registry = makeRegistry(RevealPower)
+
+	local activatorChar = buildCharacter("RevealActivator")
+	local targetChar = buildCharacter("RevealTarget")
+	local activator = mockPlayer({ name = "Activator", userId = 20001, character = activatorChar })
+	local target = mockPlayer({ name = "Target", userId = 20002, character = targetChar })
+
+	--// Reveal scans Players:GetPlayers() for enemies — our mocks aren't real Players,
+	--// so stub the relevant globals.
+	local origGetPlayers = Players.GetPlayers
+	Players.GetPlayers = function() return { activator, target } end
+	local origGetTeam = TeleportMetadataService.GetTeam
+	TeleportMetadataService.GetTeam = function(player)
+		if player == activator then return 1 end
+		if player == target then return 2 end
+		return nil
+	end
+
+	--// Capture NetworkRouter:Call invocations.
+	local calls = {}
+	local origCall = NetworkRouter.Call
+	NetworkRouter.Call = function(self, name, plr, payload)
+		table.insert(calls, { name = name, player = plr, payload = payload })
+	end
+
+	local svc = PowerService.new(activator, { Power = "reveal" }, registry)
+	local r = svc:Activate("reveal", {})
+	check("Reveal.1 accepted", r.success == true)
+	check("Reveal.2 exactly one NetworkRouter:Call", #calls == 1)
+	local c = calls[1]
+	check("Reveal.3 remote = PowerBroadcast", c and c.name == "PowerBroadcast")
+	check("Reveal.4 delivered to activator", c and c.player == activator)
+	check("Reveal.5 effectType = Reveal", c and c.payload and c.payload.effectType == "Reveal")
+	check("Reveal.6 targetCharacter = target's char", c and c.payload and c.payload.targetCharacter == targetChar)
+	check("Reveal.7 durationSec = 4", c and c.payload and c.payload.durationSec == 4)
+
+	NetworkRouter.Call = origCall
+	Players.GetPlayers = origGetPlayers
+	TeleportMetadataService.GetTeam = origGetTeam
+
+	destroyCharacter(activatorChar)
+	destroyCharacter(targetChar)
+end
+
 print(`\n{passed} passed, {failed} failed`)
