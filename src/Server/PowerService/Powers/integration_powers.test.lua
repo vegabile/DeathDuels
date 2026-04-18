@@ -262,4 +262,24 @@ do
 	destroyCharacter(char)
 end
 
+--// ─── Case: ShieldPulse ───────────────────────────────────────────────────
+
+do
+	freshSession()
+	local ShieldPower = require(ServerScriptService.PowerService.Powers.ShieldPulse)
+	local registry = makeRegistry(ShieldPower)
+	local char = buildCharacter("ShieldChar")
+	local player = mockPlayer({ name = "Shielded", character = char })
+	local svc = PowerService.new(player, { Power = "shieldpulse" }, registry)
+
+	local r = svc:Activate("shieldpulse", {})
+	check("ShieldPulse.1 accepted", r.success == true)
+	check("ShieldPulse.2 ShieldActive mid-duration", player:GetAttribute("ShieldActive") == true)
+
+	task.wait(2.1)
+	check("ShieldPulse.3 ShieldActive cleared after duration", player:GetAttribute("ShieldActive") == nil)
+
+	destroyCharacter(char)
+end
+
 print(`\n{passed} passed, {failed} failed`)
