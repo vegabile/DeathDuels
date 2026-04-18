@@ -1,4 +1,3 @@
-local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -101,7 +100,6 @@ end
 local onActivatePressed
 
 local function refresh()
-	if not state.abilityUi then return end
 	local visible = state.powerEntry ~= nil
 		and state.roundActive
 		and state.alive
@@ -145,7 +143,7 @@ onActivatePressed = function()
 		end
 	)
 
-	NetworkRouter:Call(remoteName(), {
+	NetworkRouter:Call(state.remoteName, {
 		powerName  = state.powerName,
 		payload    = {},
 		sequenceId = state.sequenceId,
@@ -153,8 +151,15 @@ onActivatePressed = function()
 end
 
 local function onServerResponse(payload: any)
-	if type(payload) ~= "table" then return end
-	if type(payload.sequenceId) ~= "number" then return end
+	if type(payload) ~= "table" then
+		warn(`[POWER] ActivateResponse payload not a table: {typeof(payload)}`)
+		return
+	end
+	if type(payload.sequenceId) ~= "number" then
+		warn(`[POWER] ActivateResponse missing numeric sequenceId`)
+		return
+	end
+	--// Stale: a newer press is in flight; drop without warn (documented path).
 	if payload.sequenceId ~= state.sequenceId then return end
 
 	state.pendingResponse = false
