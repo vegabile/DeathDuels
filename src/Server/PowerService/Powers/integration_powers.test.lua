@@ -167,4 +167,25 @@ do
 	destroyCharacter(char)
 end
 
+--// ─── Case: KnifeSpeedBoost ───────────────────────────────────────────────
+
+do
+	freshSession()
+	local KSBPower = require(ServerScriptService.PowerService.Powers.KnifeSpeedBoost)
+	local registry = makeRegistry(KSBPower)
+	local char = buildCharacter("KSBChar")
+	local player = mockPlayer({ name = "KnifeBoost", character = char })
+	local svc = PowerService.new(player, { Power = "knifespeedboost" }, registry)
+
+	local r = svc:Activate("knifespeedboost", {})
+	check("KnifeSpeedBoost.1 accepted", r.success == true)
+	check("KnifeSpeedBoost.2 KnifeCooldownMult set", player:GetAttribute("KnifeCooldownMult") == 0.74)
+	check("KnifeSpeedBoost.3 GunCooldownMult NOT set", player:GetAttribute("GunCooldownMult") == nil)
+
+	task.wait(5.1)
+	check("KnifeSpeedBoost.4 KnifeCooldownMult cleared", player:GetAttribute("KnifeCooldownMult") == nil)
+
+	destroyCharacter(char)
+end
+
 print(`\n{passed} passed, {failed} failed`)
