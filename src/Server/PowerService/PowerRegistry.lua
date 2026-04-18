@@ -4,8 +4,21 @@ local Types = require(ReplicatedStorage.Power.Types)
 
 type Power = Types.Power
 
---// Powers/ is empty in v1; follow-up features add entries here as { Power1, Power2, ... }.
-local base = createRegistry({})
+local powersFolder = script.Parent:FindFirstChild("Powers")
+if not powersFolder then
+	warn("[PowerRegistry] Powers folder missing — registry will be empty")
+end
+
+local powers: { Power } = {}
+if powersFolder then
+	for _, module in powersFolder:GetChildren() do
+		if not module:IsA("ModuleScript") then continue end
+		if module.Name:match("%.test$") then continue end
+		table.insert(powers, require(module))
+	end
+end
+
+local base = createRegistry(powers)
 
 local PowerRegistry = {}
 
