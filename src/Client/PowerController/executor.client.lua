@@ -1,20 +1,8 @@
-local Players = game:GetService("Players")
+local PowerController = require(script.Parent)
 
-local Input = require(script.Parent.Input)
+--// Effects self-register when their module is required. Require them here so
+--// registration happens before .start() listens.
+require(script.Parent.Effects.Reveal)
+require(script.Parent.Effects.Blind)
 
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-local abilityUi = playerGui:WaitForChild("AbilityUI")
-if not abilityUi:IsA("ScreenGui") then
-	warn(`[POWER] AbilityUI is {abilityUi.ClassName}, expected ScreenGui`)
-	return
-end
-
-local frame = abilityUi:WaitForChild("Frame")
-local button = frame:WaitForChild("Button")
-if not button:IsA("TextButton") then
-	warn(`[POWER] AbilityUI.Frame.Button is {button.ClassName}, expected TextButton`)
-	return
-end
-
-Input.init(abilityUi, button)
+PowerController.start()
