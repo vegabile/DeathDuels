@@ -101,4 +101,26 @@ end
 --// ─── Per-power cases will be appended below as each power lands ──────────
 --// (Tasks 8–20 each add one case.)
 
+--// ─── Case: Sprint ────────────────────────────────────────────────────────
+
+do
+	freshSession()
+	local SprintPower = require(ServerScriptService.PowerService.Powers.Sprint)
+	local registry = makeRegistry(SprintPower)
+	local char = buildCharacter("SprintChar")
+	local player = mockPlayer({ name = "Sprinter", character = char })
+	local svc = PowerService.new(player, { Power = "sprint" }, registry)
+
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local baseSpeed = hum.WalkSpeed
+	local r = svc:Activate("sprint", {})
+	check("Sprint.1 accepted", r.success == true)
+	check("Sprint.2 WalkSpeed elevated mid-duration", hum.WalkSpeed > baseSpeed + 0.01)
+
+	task.wait(2.1)   --// duration + epsilon
+	check("Sprint.3 WalkSpeed restored after duration", math.abs(hum.WalkSpeed - baseSpeed) < 0.01)
+
+	destroyCharacter(char)
+end
+
 print(`\n{passed} passed, {failed} failed`)
