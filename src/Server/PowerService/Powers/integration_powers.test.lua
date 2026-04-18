@@ -358,4 +358,39 @@ do
 	destroyCharacter(targetChar)
 end
 
+
+--// ─── Case: FakeClone ─────────────────────────────────────────────────────
+
+do
+	freshSession()
+	local ClonePower = require(ServerScriptService.PowerService.Powers.FakeClone)
+	local registry = makeRegistry(ClonePower)
+	local char = buildCharacter("CloneChar")
+	local player = mockPlayer({ name = "Cloner", character = char })
+	local svc = PowerService.new(player, { Power = "fakeclone" }, registry)
+
+	local preClones = #workspace:GetChildren()
+	local r = svc:Activate("fakeclone", {})
+	check("FakeClone.1 accepted", r.success == true)
+
+	task.wait(0.1)
+	local postClones = #workspace:GetChildren()
+	check("FakeClone.2 new child parented to workspace", postClones == preClones + 1)
+
+	local cloneModel
+	for _, c in workspace:GetChildren() do
+		if c:IsA("Model") and c.Name:match("^CloneChar") and c ~= char then
+			cloneModel = c
+			break
+		end
+	end
+	check("FakeClone.3 clone is a Model", cloneModel ~= nil)
+
+	task.wait(8.1)
+	check("FakeClone.4 clone removed after duration",
+		cloneModel == nil or cloneModel.Parent == nil)
+
+	destroyCharacter(char)
+end
+
 print(`\n{passed} passed, {failed} failed`)
