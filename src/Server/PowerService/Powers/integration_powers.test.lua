@@ -145,4 +145,26 @@ do
 	destroyCharacter(char)
 end
 
+--// ─── Case: QuickDraw ─────────────────────────────────────────────────────
+
+do
+	freshSession()
+	local QDPower = require(ServerScriptService.PowerService.Powers.QuickDraw)
+	local registry = makeRegistry(QDPower)
+	local char = buildCharacter("QDChar")
+	local player = mockPlayer({ name = "Drawer", character = char })
+	local svc = PowerService.new(player, { Power = "quickdraw" }, registry)
+
+	local r = svc:Activate("quickdraw", {})
+	check("QuickDraw.1 accepted", r.success == true)
+	check("QuickDraw.2 KnifeCooldownMult set mid-duration", player:GetAttribute("KnifeCooldownMult") == 0.5)
+	check("QuickDraw.3 GunCooldownMult set mid-duration", player:GetAttribute("GunCooldownMult") == 0.5)
+
+	task.wait(5.1)
+	check("QuickDraw.4 KnifeCooldownMult cleared", player:GetAttribute("KnifeCooldownMult") == nil)
+	check("QuickDraw.5 GunCooldownMult cleared", player:GetAttribute("GunCooldownMult") == nil)
+
+	destroyCharacter(char)
+end
+
 print(`\n{passed} passed, {failed} failed`)
