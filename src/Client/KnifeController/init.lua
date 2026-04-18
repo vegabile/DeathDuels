@@ -13,7 +13,6 @@ local SFXController = require(script.Parent.SFXController)
 local AnimationController = require(script.Parent.AnimationController)
 local RoundConfigs = require(ReplicatedStorage.Round.Configs)
 local AnimationsConfigs = require(ReplicatedStorage.Animations.Configs)
-local AnimationType = require(ReplicatedStorage.Animations.AnimationType)
 local AnimationProfile = require(ReplicatedStorage.Animations.AnimationProfile)
 
 local function knifeTrace(message: string)
@@ -84,7 +83,14 @@ end
 
 local function schedulePendingRelease(actionName: string, profile: any, onRelease: (pending: any) -> ())
 	local handle = pendingAction and pendingAction.handle
-	if not handle then return end
+	if not handle then
+		warn(`[KNIFE] [KnifeController] schedulePendingRelease — no animation handle for {actionName}, aborting`)
+		if pendingAction then
+			pendingAction = nil
+		end
+		KnifeStateMachine.resetAction(stateMachine, actionName)
+		return
+	end
 	local capturedGen = pendingActionGeneration
 
 	local releaseTime = (profile and profile.releaseTime) or AnimationsConfigs.DefaultReleaseTime
