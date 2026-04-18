@@ -10,6 +10,8 @@ local ActionRegistry = require(script.ActionRegistry)
 local ClientEventBus = require(script.Parent.ClientEventBus)
 local InputPosition = require(script.Parent.InputPosition)
 local SFXController = require(script.Parent.SFXController)
+local AnimationController = require(script.Parent.AnimationController)
+local RoundConfigs = require(ReplicatedStorage.Round.Configs)
 
 local function knifeTrace(message: string)
 	print("[KNIFE] " .. message)
@@ -24,6 +26,38 @@ local knifeEquipped = false
 local remoteName: string = ""
 local remoteConnection: RBXScriptConnection? = nil
 local safetyTimeoutThread: thread? = nil
+local pendingActionGeneration = 0
+local pendingAction: {
+	generation: number,
+	sequenceId: number,
+	actionName: string,
+	restOffset: CFrame,
+	handle: any,
+	fallbackTimer: thread?,
+	hardTimer: thread?,
+}? = nil
+
+local function cancelPending()
+	pendingActionGeneration += 1
+	if pendingAction then
+		if pendingAction.fallbackTimer then task.cancel(pendingAction.fallbackTimer) end
+		if pendingAction.hardTimer then task.cancel(pendingAction.hardTimer) end
+		pendingAction = nil
+	end
+	AnimationController.stopCurrent()
+	if safetyTimeoutThread then
+		task.cancel(safetyTimeoutThread)
+		safetyTimeoutThread = nil
+	end
+	KnifeStateMachine.resetAll(stateMachine)
+	knifeTrace("cancelPending executed")
+end
+
+ClientEventBus:Connect("RoundStateChanged", function(newState: string)
+	if newState ~= RoundConfigs.GAME_STATES.RoundActive then
+		cancelPending()
+	end
+end)
 
 function KnifeController.onKnifeEquipped()
 	knifeEquipped = true
@@ -41,6 +75,7 @@ end
 
 function KnifeController.onKnifeUnequipped()
 	knifeEquipped = false
+	cancelPending()
 	knifeTrace("onKnifeUnequipped")
 end
 
@@ -124,6 +159,7 @@ function KnifeController._handleServerResponse(payload: any)
 			warn("[KNIFE] [KnifeController] StateOverride missing overriddenState table")
 			return
 		end
+		cancelPending()
 		stateMachine.isStabbing = payload.overriddenState.isStabbing == true
 		stateMachine.isThrowing = payload.overriddenState.isThrowing == true
 		knifeTrace(`state override set stab={stateMachine.isStabbing} throw={stateMachine.isThrowing}`)
@@ -142,12 +178,8 @@ function KnifeController._handleServerResponse(payload: any)
 end
 
 function KnifeController.onPlayerDied()
-	KnifeStateMachine.resetAll(stateMachine)
+	cancelPending()
 	knifeEquipped = false
-	if safetyTimeoutThread then
-		task.cancel(safetyTimeoutThread)
-		safetyTimeoutThread = nil
-	end
 end
 
 return KnifeController
