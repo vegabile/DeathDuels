@@ -12,6 +12,9 @@ local InputPosition = require(script.Parent.InputPosition)
 local SFXController = require(script.Parent.SFXController)
 local AnimationController = require(script.Parent.AnimationController)
 local RoundConfigs = require(ReplicatedStorage.Round.Configs)
+local AnimationsConfigs = require(ReplicatedStorage.Animations.Configs)
+local AnimationType = require(ReplicatedStorage.Animations.AnimationType)
+local AnimationProfile = require(ReplicatedStorage.Animations.AnimationProfile)
 
 local function knifeTrace(message: string)
 	print("[KNIFE] " .. message)
@@ -79,6 +82,48 @@ function KnifeController.onKnifeUnequipped()
 	knifeTrace("onKnifeUnequipped")
 end
 
+local function schedulePendingRelease(actionName: string, profile: any, onRelease: (pending: any) -> ())
+	local handle = pendingAction and pendingAction.handle
+	if not handle then return end
+	local capturedGen = pendingActionGeneration
+
+	local releaseTime = (profile and profile.releaseTime) or AnimationsConfigs.DefaultReleaseTime
+	local hardTimeout = releaseTime + AnimationsConfigs.ReleaseTimeoutBuffer
+
+	local fired = false
+
+	local function fireOnce(source: string)
+		if fired then return end
+		if capturedGen ~= pendingActionGeneration then
+			knifeTrace(`release suppressed — stale generation (source={source})`)
+			return
+		end
+		local snapshot = pendingAction
+		if not snapshot then return end
+		fired = true
+		if snapshot.fallbackTimer then task.cancel(snapshot.fallbackTimer) end
+		if snapshot.hardTimer then task.cancel(snapshot.hardTimer) end
+		knifeTrace(`release fired action={actionName} source={source}`)
+		onRelease(snapshot)
+	end
+
+	task.spawn(function()
+		local markerFired = handle.waitForMarker(AnimationsConfigs.MarkerNames.Release)
+		if markerFired then fireOnce("marker") end
+	end)
+
+	pendingAction.fallbackTimer = task.delay(releaseTime, function()
+		fireOnce("fallback")
+	end)
+
+	pendingAction.hardTimer = task.delay(hardTimeout, function()
+		if not fired then
+			knifeTrace(`hard timeout fired action={actionName}`)
+			fireOnce("hardtimeout")
+		end
+	end)
+end
+
 function KnifeController.performAction(actionName: string)
 	knifeTrace(`performAction begin action={actionName} equipped={knifeEquipped} seq={sequenceId}`)
 	if not knifeEquipped then return end
@@ -93,46 +138,106 @@ function KnifeController.performAction(actionName: string)
 	end
 
 	sequenceId += 1
-	knifeTrace(`performAction accepted sequence={sequenceId} action={actionName}`)
+	pendingActionGeneration += 1
+	local thisGen = pendingActionGeneration
+	local thisSeq = sequenceId
 
-	local directionVector = nil
+	local character = localPlayer.Character
+	if not character then
+		knifeTrace("performAction aborted — no character")
+		KnifeStateMachine.resetAction(stateMachine, actionName)
+		return
+	end
+
+	local hrp = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local knifeTool = character:FindFirstChildWhichIsA("Tool")
+	local handlePart = knifeTool and knifeTool:FindFirstChild("Handle") :: BasePart?
+
+	if not hrp or not handlePart then
+		knifeTrace("performAction aborted — no HRP/handle")
+		KnifeStateMachine.resetAction(stateMachine, actionName)
+		return
+	end
+
+	--// Capture rest offset BEFORE starting the animation so the read is the pre-animation pose.
+	local restOffset = hrp.CFrame:ToObjectSpace(handlePart.CFrame)
+
+	local profile = AnimationProfile.resolve(
+		knifeTool.Name,
+		SharedConfigs.AnimationProfiles,
+		actionName  --// AnimationType keys match action names for Throw/Stab
+	)
+
+	local animHandle = nil
+	if profile and profile.id ~= "" then
+		animHandle = AnimationController.play(character, profile.id)
+	end
+
+	pendingAction = {
+		generation = thisGen,
+		sequenceId = thisSeq,
+		actionName = actionName,
+		restOffset = restOffset,
+		handle = animHandle,
+		fallbackTimer = nil,
+		hardTimer = nil,
+	}
+
+	--// Stab does not use the release marker — gameplay is server-owned via StabHitWindow.
+	--// Throw waits for the release callback to compute direction + spawn cosmetic projectile.
 	if actionName == "Throw" then
-		local character = localPlayer.Character
-		knifeTrace(`calculating throw direction for {localPlayer.Name}`)
-		local knifeTool = character and character:FindFirstChildWhichIsA("Tool")
-		local handle = knifeTool and knifeTool:FindFirstChild("Handle")
-		local targetPos = InputPosition.getInputPosition()
-		if handle and targetPos then
-			local delta = targetPos - handle.Position
-			knifeTrace(`throw delta magnitude={delta.Magnitude}`)
-			if delta.Magnitude < 0.01 then
-				KnifeStateMachine.resetAction(stateMachine, actionName)
-				knifeTrace("throw aborted: zero-length delta")
+		schedulePendingRelease(actionName, profile, function(snapshot)
+			if snapshot.generation ~= pendingActionGeneration then return end
+
+			local currentChar = localPlayer.Character
+			local currentHrp = currentChar and currentChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local currentHandle = currentChar and currentChar:FindFirstChildWhichIsA("Tool") and currentChar:FindFirstChildWhichIsA("Tool"):FindFirstChild("Handle") :: BasePart?
+			if not currentHrp or not currentHandle then
+				knifeTrace("release aborted — character gone")
 				return
 			end
-			directionVector = delta.Unit
-			knifeTrace(`directionVector={directionVector}`)
-		end
+
+			local restOrigin = (currentHrp.CFrame * snapshot.restOffset).Position
+			local spawnCFrame = currentHandle.CFrame
+			local aimTarget = InputPosition.getInputPosition()
+			if not aimTarget then
+				knifeTrace("release aborted — no aim target")
+				return
+			end
+			local delta = aimTarget - restOrigin
+			if delta.Magnitude < 0.01 then
+				knifeTrace("release aborted — zero-length delta")
+				return
+			end
+			local direction = delta.Unit
+
+			action.clientExecute(stateMachine, direction, spawnCFrame)
+
+			NetworkRouter:Call(remoteName, {
+				desiredAction = actionName,
+				directionVector = direction,
+				restOrigin = restOrigin,
+				spawnCFrame = spawnCFrame,
+				sequenceId = snapshot.sequenceId,
+			})
+			knifeTrace(`Throw release sent remote seq={snapshot.sequenceId}`)
+		end)
+	else
+		--// Stab: no release callback; fire remote immediately so the server can open its window.
+		action.clientExecute(stateMachine, nil)
+		NetworkRouter:Call(remoteName, {
+			desiredAction = actionName,
+			sequenceId = thisSeq,
+		})
 	end
 
-	action.clientExecute(stateMachine, directionVector)
-	knifeTrace(`clientExecute called for {actionName} dirExists={directionVector ~= nil}`)
-
-	NetworkRouter:Call(remoteName, {
-		desiredAction = actionName,
-		directionVector = directionVector,
-		sequenceId = sequenceId,
-	})
-	knifeTrace(`sent remote payload action={actionName} seq={sequenceId}`)
-
-	local thisSequence = sequenceId
-	if safetyTimeoutThread then
-		task.cancel(safetyTimeoutThread)
-	end
+	--// Safety timeout covers the entire windup + cooldown.
+	if safetyTimeoutThread then task.cancel(safetyTimeoutThread) end
 	safetyTimeoutThread = task.delay(action.cooldown + Configs.SafetyTimeoutBuffer, function()
-		if sequenceId == thisSequence then
+		if sequenceId == thisSeq then
 			KnifeStateMachine.resetAction(stateMachine, actionName)
-			knifeTrace(`safety timeout triggered action={actionName} seq={sequenceId}`)
+			pendingAction = nil
+			knifeTrace(`safety timeout triggered action={actionName} seq={thisSeq}`)
 		end
 	end)
 end
