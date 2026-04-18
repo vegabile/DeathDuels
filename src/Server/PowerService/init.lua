@@ -47,6 +47,10 @@ function PowerService.new(player: Player, loadout: Loadout?, registry: any?): an
 		end
 	end
 
+	if self._equippedPower ~= nil then
+		player:SetAttribute("EquippedPower", self._equippedPower.name)
+	end
+
 	instancesByPlayer[player] = self
 	return self
 end
@@ -56,6 +60,7 @@ function PowerService.Get(player: Player): any?
 end
 
 function PowerService:Destroy()
+	self.player:SetAttribute("EquippedPower", nil)
 	table.clear(self._cooldowns)
 	table.clear(self._lastAttempt)
 	instancesByPlayer[self.player] = nil
