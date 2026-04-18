@@ -144,6 +144,44 @@ New methods:
 
 `AnimationLengthCache` — a module-local table `{ [animationId: string]: number }`, populated by `preloadProfile`. Exposed via `AnimationController.getCachedLength(animationId) → number?`.
 
+### 4.4 Singleton enforcement (only one animation at a time)
+
+The controller exposes a module-level **`currentActiveHandle: AnimationHandle?`** slot. Every public play method (`play`, `playLooped`, `playChain`) runs this sequence before starting its track:
+
+1. If `currentActiveHandle ~= nil`, call `currentActiveHandle.stop()` — which tears down its `AnimationTrack`, fires any marker/stopped waiters with `false`, and nulls out the slot.
+2. Build the new handle, assign it to `currentActiveHandle`, call `track:Play()`.
+
+`handle.stop()` also clears the slot only if the slot still points at itself (avoids a stale handle zeroing out a newer one during re-entrancy).
+
+New public helper: `AnimationController.stopCurrent()` — just `if currentActiveHandle then currentActiveHandle.stop() end`. Callers use this when they want a clean slate before the next play (e.g., gun controller tearing down idle before an action starts).
+
+**Implications for idle:** Idle lives in the same slot as actions. When an action starts, the action's play automatically stops idle via the slot. When the action completes, the controller (GunController) explicitly re-plays idle, which re-occupies the slot. No separate "idle slot" is needed.
+
+**Implications for `playChain`:** Internal chain progression is a single handle's responsibility — it owns two sequential tracks but occupies one slot. When the chain advances from track 1 to track 2, it swaps its internal track reference but does *not* clear the slot. External callers only see the chain handle.
+
+### 4.5 Stale-callback guard (pending-action tokens)
+
+The singleton slot prevents concurrent *playback* but does not prevent a **stale release waiter** — e.g., a fallback timer from cancelled action A firing after action B has started — from writing into the wrong pending-action state.
+
+Each controller maintains:
+
+- `pendingActionGeneration: number` — monotonically increasing counter, bumped on every `performAction` call and every `cancelPending` call.
+- `pendingAction: { generation, sequenceId, restOffset, profile, action, release* timers } | nil` — the single pending-action record.
+
+Every release waiter (marker, fallback timer, hard timeout) **captures the generation at spawn time** and checks it before firing:
+
+```lua
+local myGen = pendingActionGeneration
+task.spawn(function()
+    local fired = handle.waitForMarker(markerName)
+    if myGen ~= pendingActionGeneration then return end  --// stale — abort silently
+    if not fired then return end
+    _onRelease(pendingAction)
+end)
+```
+
+Same pattern for the `task.delay`-based fallback and hard timeout. Stale waiters exit cleanly without touching state. This matters because cancellation and subsequent actions can happen faster than `task.cancel` can always interrupt a scheduled delay.
+
 ---
 
 ## 5. Client Flow
@@ -254,11 +292,13 @@ Unchanged. The floor values in Configs remain the authoritative upper bound on a
 
 Single `cancelPending()` helper per controller (`KnifeController`, `GunController`) that:
 
+- **Bumps `pendingActionGeneration`** — any in-flight marker waiter or delay timer that fires afterward self-aborts via the generation check (§4.5).
 - Cancels the release-marker waiter (flag + `task.cancel` on fallback and hard-timeout timers).
-- Calls `handle.stop()` on the active action handle and on the idle handle (gun only).
-- Clears the pending-action record (rest offset, profile, sequenceId).
+- Calls `AnimationController.stopCurrent()` — kills whatever animation is active (action *or* idle).
+- Clears `pendingAction = nil`.
 - Calls `stateMachine.resetAll(...)`.
 - Clears `safetyTimeoutThread`.
+- For gun controller: re-plays idle if the weapon is still equipped and the round is still active (so the player isn't left pose-less).
 
 Triggers that call `cancelPending()`:
 
