@@ -35,9 +35,11 @@ src/Client/InputRouter/
     Configs.lua            --// MODIFIED — add PowerBindings
     init.lua               --// MODIFIED — add bindPower / unbindPower
 
+src/Shared/Power/
+    Configs.lua            --// NEW — POWERS_BY_NAME lookup (client + server readable)
+
 src/Server/PowerService/
     init.lua               --// MODIFIED — set/clear EquippedPower attribute
-    Configs.lua            --// MODIFIED — add displayName per power
 ```
 
 The executor extension and the `Input/` subdir ship in this work. The `Effects/` subdir and the dispatcher portion of `init.lua` are the concrete-powers spec's responsibility (not blocked by this work — either can land first).
@@ -106,38 +108,35 @@ self.player:SetAttribute("EquippedPower", nil)
 
 No other server code reads this attribute — it exists purely as a replicated signal for the client UI. It's coherent with the buff-attribute pattern the concrete-powers spec already uses.
 
-### 4.2 `PowerService/Configs.lua`
+### 4.2 `src/Shared/Power/Configs.lua`  (new module)
 
-Extend every `POWERS` entry with `registryName` (matches the `Power.name` set in its module) and `displayName`:
-
-```lua
-Sprint          = { ..., registryName = "sprint",          displayName = "Sprint" },
-Dash            = { ..., registryName = "dash",            displayName = "Dash" },
-Adrenaline      = { ..., registryName = "adrenaline",      displayName = "Adrenaline" },
-Launch          = { ..., registryName = "launch",          displayName = "Launch" },
-QuickDraw       = { ..., registryName = "quickdraw",       displayName = "Quick Draw" },
-KnifeSpeedBoost = { ..., registryName = "knifespeedboost", displayName = "Knife Speed Boost" },
-WeaponBuff      = { ..., registryName = "weaponbuff",      displayName = "Weapon Buff" },
-ShieldPulse     = { ..., registryName = "shieldpulse",     displayName = "Shield Pulse" },
-Ghost           = { ..., registryName = "ghost",           displayName = "Ghost" },
-Reveal          = { ..., registryName = "reveal",          displayName = "Reveal" },
-FakeClone       = { ..., registryName = "fakeclone",       displayName = "Fake Clone" },
-SmokeScreen     = { ..., registryName = "smokescreen",     displayName = "Smoke Screen" },
-Blinding        = { ..., registryName = "blinding",        displayName = "Blinding" },
-```
-
-The client needs a mapping from lowercase `Power.name` (the attribute value) to the matching entry. Built at module load as a side table:
+Shared between client and server. Client requires from `ReplicatedStorage.Power.Configs`; server can read the same values. Holds only the UI-facing slice — gameplay-tuning fields (durations, speed multipliers, particle configs, etc.) continue to live in `src/Server/PowerService/Configs.lua` under the concrete-powers spec.
 
 ```lua
---// appended at the bottom of Configs.lua
-local byName = {}
-for _, entry in pairs(Configs.POWERS) do
-    byName[entry.registryName] = entry
-end
-Configs.POWERS_BY_NAME = byName
+local POWERS_BY_NAME = {
+    sprint          = { displayName = "Sprint",            cooldown = 10 },
+    dash            = { displayName = "Dash",              cooldown = 8  },
+    adrenaline      = { displayName = "Adrenaline",        cooldown = 20 },
+    launch          = { displayName = "Launch",            cooldown = 8  },
+    quickdraw       = { displayName = "Quick Draw",        cooldown = 15 },
+    knifespeedboost = { displayName = "Knife Speed Boost", cooldown = 15 },
+    weaponbuff      = { displayName = "Weapon Buff",       cooldown = 20 },
+    shieldpulse     = { displayName = "Shield Pulse",      cooldown = 15 },
+    ghost           = { displayName = "Ghost",             cooldown = 20 },
+    reveal          = { displayName = "Reveal",            cooldown = 15 },
+    fakeclone       = { displayName = "Fake Clone",        cooldown = 20 },
+    smokescreen     = { displayName = "Smoke Screen",      cooldown = 20 },
+    blinding        = { displayName = "Blinding",          cooldown = 15 },
+}
+
+return {
+    POWERS_BY_NAME = POWERS_BY_NAME,
+}
 ```
 
-Client calls `Configs.POWERS_BY_NAME[attribute]` to get `{ cooldown, displayName, registryName, ... }`. `registryName` is explicit and load-bearing — it must match the `Power.name` set in the corresponding module. A mismatch is caught the first time the client receives the attribute (unknown-name branch in §8).
+The table key **is** the registry name — it must match the `Power.name` set in each concrete Power module (which concrete-powers ships). A mismatch is caught the first time the client receives the attribute (unknown-name branch in §8).
+
+Cooldown duplication note: the concrete-powers spec also stores `cooldown` in its own `POWERS` table. When concrete-powers lands, its server-side `cooldown` should be sourced from this shared module (`require(ReplicatedStorage.Power.Configs).POWERS_BY_NAME[<name>].cooldown`) so the two stay in lockstep. Until then, the author of concrete-powers keeps them in sync manually.
 
 ## 5. Client: `PowerController/Input/init.lua`
 
@@ -148,7 +147,7 @@ local state = {
     abilityUi       = nil,          --// ScreenGui (injected)
     button          = nil,          --// TextButton (injected)
     powerName       = nil,          --// lowercase, mirrors EquippedPower attr
-    powerEntry      = nil,          --// resolved Configs.POWERS_BY_NAME entry
+    powerEntry      = nil,          --// resolved SharedPowerConfigs.POWERS_BY_NAME entry
     roundActive     = false,        --// tracked via ClientEventBus RoundUpdate (snapshot.state)
     alive           = false,        --// tracked via CharacterAdded + Humanoid.Died
     pendingResponse = false,        --// true between press and ActivateResponse
@@ -386,7 +385,7 @@ Follows the CLAUDE.md rule that UI must be passed in as a parameter. The executo
 | Case | Behavior |
 |---|---|
 | `EquippedPower` never set (loadout missing) | `powerEntry` stays `nil`, `refresh()` hides UI, no keybinds bound. No error. |
-| `EquippedPower` set to an unknown name | `Configs.POWERS_BY_NAME[name]` returns nil → treated same as "no power equipped" (hidden) + `warn(`[POWER] Unknown EquippedPower: {name}`)`. |
+| `EquippedPower` set to an unknown name | `SharedPowerConfigs.POWERS_BY_NAME[name]` returns nil → treated same as "no power equipped" (hidden) + `warn(`[POWER] Unknown EquippedPower: {name}`)`. |
 | Round ends mid-cooldown | `refresh()` hides UI; `cancelCooldown` runs. Server would reject the next press with `InvalidState` anyway. |
 | Player dies mid-cooldown | Same as above, triggered by `Humanoid.Died`. |
 | Server responds `success=false, reason=OnCooldown` | `pendingResponse = false`, no local cooldown started, button ungreys. Should only happen if client/server clocks drifted — the UX is a silent retry. |
@@ -435,7 +434,7 @@ No Studio-executable client tests — `ContextActionService` + `PlayerGui` behav
 - **UI passed as parameter.** `Input.init(abilityUi, button)` receives both; the module itself never touches `PlayerGui`.
 - **No silent returns.** Every early-return is either on a guarded gate (`isActivatable`, `sequenceId` mismatch) or carries a `warn`.
 - **One file, one responsibility.** Input binding stays in `InputRouter`; UI + cooldown state stays in `Input/init.lua`; server attribute write stays in `PowerService`. No cross-cutting.
-- **Configuration in one place.** Display names + cooldowns in `PowerService/Configs.lua`. Keybinds in `InputRouter/Configs.lua`. Client display tuning (update interval) in `PowerController/Input/Configs.lua`.
+- **Configuration in one place.** Display names + cooldowns in `src/Shared/Power/Configs.lua` (client + server). Keybinds in `InputRouter/Configs.lua`. Client display tuning (update interval) in `PowerController/Input/Configs.lua`.
 - **Depend on contracts, not implementations.** Client reads the `EquippedPower` attribute; it doesn't call into `PowerService` or reach into `TeleportMetadataService`. Swap the attribute source and nothing downstream changes.
 - **`--//` comments only where design choice is non-obvious.**
 
