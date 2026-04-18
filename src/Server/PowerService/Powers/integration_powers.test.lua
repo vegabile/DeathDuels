@@ -393,4 +393,37 @@ do
 	destroyCharacter(char)
 end
 
+
+--// ─── Case: SmokeScreen ───────────────────────────────────────────────────
+
+do
+	freshSession()
+	local SmokePower = require(ServerScriptService.PowerService.Powers.SmokeScreen)
+	local registry = makeRegistry(SmokePower)
+	local char = buildCharacter("SmokeChar")
+	local player = mockPlayer({ name = "Smoker", character = char })
+	local svc = PowerService.new(player, { Power = "smokescreen" }, registry)
+
+	local r = svc:Activate("smokescreen", {})
+	check("SmokeScreen.1 accepted", r.success == true)
+
+	task.wait(0.1)
+	local smokePart
+	for _, c in workspace:GetChildren() do
+		if c:IsA("BasePart") and c.Name == "SmokeScreenCloud" then
+			smokePart = c
+			break
+		end
+	end
+	check("SmokeScreen.2 smoke Part parented to workspace", smokePart ~= nil)
+	check("SmokeScreen.3 smoke has ParticleEmitter child",
+		smokePart and smokePart:FindFirstChildOfClass("ParticleEmitter") ~= nil)
+
+	task.wait(6.1)
+	check("SmokeScreen.4 smoke Part removed after duration",
+		smokePart == nil or smokePart.Parent == nil)
+
+	destroyCharacter(char)
+end
+
 print(`\n{passed} passed, {failed} failed`)
