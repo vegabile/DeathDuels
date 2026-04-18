@@ -1,5 +1,6 @@
 export type GunStateMachine = {
 	isShooting: boolean,
+	isReloading: boolean,
 }
 
 export type GunActionConfig = {
@@ -11,7 +12,7 @@ export type GunActionConfig = {
 
 --// Server actions own authoritative logic (raycast, damage, tracer)
 export type ServerGunAction = GunActionConfig & {
-	serverExecute: (player: Player, playerState: any, directionVector: Vector3?) -> (),
+	serverExecute: (player: Player, playerState: any, directionVector: Vector3?, restOrigin: Vector3?) -> (),
 	serverCleanup: (player: Player, playerState: any) -> (),
 }
 
@@ -23,6 +24,7 @@ export type ClientGunAction = GunActionConfig & {
 export type GunActionPayload = {
 	desiredAction: string,
 	directionVector: Vector3?,
+	restOrigin: Vector3?,
 	sequenceId: number,
 }
 
