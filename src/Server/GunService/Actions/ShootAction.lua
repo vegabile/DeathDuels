@@ -3,6 +3,8 @@ local Debris = game:GetService("Debris")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local SharedConfigs = require(ReplicatedStorage.Gun.Configs)
+local AnimationType = require(ReplicatedStorage.Animations.AnimationType)
+local AnimationProfile = require(ReplicatedStorage.Animations.AnimationProfile)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 local GunUtility = require(ReplicatedStorage.Gun.GunUtility)
 
@@ -16,7 +18,10 @@ local ShootAction = {}
 ShootAction.name = "Shoot"
 ShootAction.cooldown = SharedConfigs.ShootCooldown
 ShootAction.duration = SharedConfigs.ShootDuration
-ShootAction.animationId = SharedConfigs.ShootAnimationId
+do
+	local _profile = AnimationProfile.resolve("SmallPistol", SharedConfigs.AnimationProfiles, AnimationType.Shoot)
+	ShootAction.animationId = (_profile and _profile.id) or ""
+end
 
 local function drawTracer(origin: Vector3, hitPos: Vector3)
 	local distance = (hitPos - origin).Magnitude
