@@ -149,7 +149,7 @@ local state = {
     button          = nil,          --// TextButton (injected)
     powerName       = nil,          --// lowercase, mirrors EquippedPower attr
     powerEntry      = nil,          --// resolved Configs.POWERS_BY_NAME entry
-    roundActive     = false,        --// tracked via ServerEventBus RoundStateChanged
+    roundActive     = false,        --// tracked via ClientEventBus RoundUpdate (snapshot.state)
     alive           = false,        --// tracked via CharacterAdded + Humanoid.Died
     pendingResponse = false,        --// true between press and ActivateResponse
     pendingTimeout  = nil,          --// safety thread; clears pendingResponse if server never replies
@@ -164,14 +164,14 @@ local state = {
 | Signal | Handler |
 |---|---|
 | `localPlayer:GetAttributeChangedSignal("EquippedPower")` | re-read attr, resolve `powerEntry`, refresh visibility + button text |
-| `ServerEventBus:Connect("RoundStateChanged", ...)` | update `state.roundActive`, refresh visibility |
+| `ClientEventBus:Connect("RoundUpdate", snapshot)` | `state.roundActive = snapshot.state == "RoundActive"`, refresh visibility |
 | `localPlayer.CharacterAdded` | connect `Humanoid.Died`, set `alive = true`, refresh |
 | `Humanoid.Died` | set `alive = false`, cancel cooldown thread, refresh |
 | `button.MouseButton1Click` | call `onActivatePressed()` |
 | `InputRouter.bindPower(onActivatePressed)` | on equip, see 5.4 |
 | `NetworkRouter:Listen("PowerAction_{UserId}", onServerResponse)` | handle `ActivateResponse` |
 
-`ServerEventBus` is used here because `RoundController` already fires `RoundStateChanged` on it — the same pattern that existing client controllers use.
+`ClientEventBus` `RoundUpdate` is what `RoundController.Init` already fires on the client after receiving the server's `RoundUpdate` remote. `snapshot.state` is a string equal to one of `RoundConfigs.GAME_STATES`. The initial snapshot is also fired from `RoundController.Init` via a one-shot `NetworkRouter:Call("RoundGetSnapshot")`, so joining mid-round still populates the round-state gate correctly.
 
 ### 5.3 Visibility refresh (`refresh()`)
 
