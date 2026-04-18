@@ -1,6 +1,8 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
+local AnimationType = require(ReplicatedStorage.Animations.AnimationType)
+local AnimationProfile = require(ReplicatedStorage.Animations.AnimationProfile)
 local ProjectileFactory = require(ReplicatedStorage.Knife.ProjectileFactory)
 local KnifeUtility = require(ReplicatedStorage.Knife.KnifeUtility)
 local AnimationController = require(script.Parent.Parent.Parent.AnimationController)
@@ -11,7 +13,10 @@ local ThrowAction = {}
 ThrowAction.name = "Throw"
 ThrowAction.cooldown = SharedConfigs.ThrowCooldown
 ThrowAction.duration = SharedConfigs.ThrowDuration
-ThrowAction.animationId = SharedConfigs.ThrowAnimationId
+do
+	local _profile = AnimationProfile.resolve("Knife", SharedConfigs.AnimationProfiles, AnimationType.Throw)
+	ThrowAction.animationId = (_profile and _profile.id) or ""
+end
 
 local function getOrCreateClientFolder(): Folder
 	local folderName = "ClientKnifeProjectiles"
@@ -37,7 +42,7 @@ function ThrowAction.clientExecute(_state, directionVector: Vector3?)
 	end
 
 	print("[KNIFE] [ClientThrowAction] playing throw animation/sfx")
-	AnimationController.play(character, SharedConfigs.ThrowAnimationId)
+	AnimationController.play(character, ThrowAction.animationId)
 	SFXController.playUI(SharedConfigs.ThrowSoundId)
 
 	local knifeTool = KnifeUtility.findKnifeTool(character)

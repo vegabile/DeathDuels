@@ -3,6 +3,8 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DebugUtility = require(ReplicatedStorage.DebugUtility)
 local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
+local AnimationType = require(ReplicatedStorage.Animations.AnimationType)
+local AnimationProfile = require(ReplicatedStorage.Animations.AnimationProfile)
 local KnifeUtility = require(ReplicatedStorage.Knife.KnifeUtility)
 
 local ServerConfigs = require(script.Parent.Parent.Configs)
@@ -15,7 +17,10 @@ local StabAction = {}
 StabAction.name = "Stab"
 StabAction.cooldown = SharedConfigs.StabCooldown
 StabAction.duration = SharedConfigs.StabDuration
-StabAction.animationId = SharedConfigs.StabAnimationId
+do
+	local _profile = AnimationProfile.resolve("Knife", SharedConfigs.AnimationProfiles, AnimationType.Stab)
+	StabAction.animationId = (_profile and _profile.id) or ""
+end
 
 function StabAction.serverExecute(player: Player, playerState: any, _directionVector: Vector3?)
 	playerState.alreadyHit = {}

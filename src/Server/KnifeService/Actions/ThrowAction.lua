@@ -1,6 +1,8 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
+local AnimationType = require(ReplicatedStorage.Animations.AnimationType)
+local AnimationProfile = require(ReplicatedStorage.Animations.AnimationProfile)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 local KnifeUtility = require(ReplicatedStorage.Knife.KnifeUtility)
 
@@ -16,7 +18,10 @@ local ThrowAction = {}
 ThrowAction.name = "Throw"
 ThrowAction.cooldown = SharedConfigs.ThrowCooldown
 ThrowAction.duration = SharedConfigs.ThrowDuration
-ThrowAction.animationId = SharedConfigs.ThrowAnimationId
+do
+	local _profile = AnimationProfile.resolve("Knife", SharedConfigs.AnimationProfiles, AnimationType.Throw)
+	ThrowAction.animationId = (_profile and _profile.id) or ""
+end
 
 function ThrowAction.serverExecute(player: Player, playerState: any, directionVector: Vector3?)
 	if not directionVector then
