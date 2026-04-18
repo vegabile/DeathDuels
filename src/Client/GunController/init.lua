@@ -6,8 +6,14 @@ local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 local GunStateMachine = require(ReplicatedStorage.Gun.GunStateMachine)
 local SharedConfigs = require(ReplicatedStorage.Gun.Configs)
 
+local AnimationsConfigs = require(ReplicatedStorage.Animations.Configs)
+local AnimationType = require(ReplicatedStorage.Animations.AnimationType)
+local AnimationProfile = require(ReplicatedStorage.Animations.AnimationProfile)
+local RoundConfigs = require(ReplicatedStorage.Round.Configs)
+
 local Configs = require(script.Configs)
 local ActionRegistry = require(script.ActionRegistry)
+local AnimationController = require(script.Parent.AnimationController)
 local ClientEventBus = require(script.Parent.ClientEventBus)
 local InputPosition = require(script.Parent.InputPosition)
 local SFXController = require(script.Parent.SFXController)
@@ -24,23 +30,69 @@ local gunEquipped = false
 local remoteName: string = ""
 local remoteConnection: RBXScriptConnection? = nil
 local safetyTimeoutThread: thread? = nil
+local pendingActionGeneration = 0
+local pendingAction: any = nil
+local idleHandle: any = nil
+
+local function restartIdle()
+	if not gunEquipped then return end
+	local character = localPlayer.Character
+	if not character then return end
+	local tool = character:FindFirstChildWhichIsA("Tool")
+	if not tool then return end
+	local profile = AnimationProfile.resolve(tool.Name, SharedConfigs.AnimationProfiles, AnimationType.Idle)
+	if not profile or profile.id == "" then return end
+	idleHandle = AnimationController.playLooped(character, profile.id)
+end
+
+local function cancelPending()
+	pendingActionGeneration += 1
+	if pendingAction then
+		if pendingAction.fallbackTimer then task.cancel(pendingAction.fallbackTimer) end
+		if pendingAction.hardTimer then task.cancel(pendingAction.hardTimer) end
+		pendingAction = nil
+	end
+	AnimationController.stopCurrent()
+	idleHandle = nil
+	if safetyTimeoutThread then
+		task.cancel(safetyTimeoutThread)
+		safetyTimeoutThread = nil
+	end
+	GunStateMachine.resetAll(stateMachine)
+	restartIdle()  --// if still equipped + active round, slot fills with idle again
+end
+
+ClientEventBus:Connect("RoundStateChanged", function(newState: string)
+	if newState ~= RoundConfigs.GAME_STATES.RoundActive then
+		cancelPending()
+	end
+end)
 
 function GunController.onGunEquipped()
 	gunEquipped = true
 	debugPrint(DEBUG, `[GunController] Gun equipped`)
 
 	remoteName = `GunAction_{localPlayer.UserId}`
-
-	if remoteConnection then
-		remoteConnection:Disconnect()
-	end
+	if remoteConnection then remoteConnection:Disconnect() end
 	remoteConnection = NetworkRouter:Listen(remoteName, function(payload)
 		GunController._handleServerResponse(payload)
 	end)
+
+	local character = localPlayer.Character
+	local tool = character and character:FindFirstChildWhichIsA("Tool")
+	if tool then
+		local toolProfile = SharedConfigs.AnimationProfiles[tool.Name]
+		if toolProfile then
+			AnimationController.preloadProfile(character, toolProfile)
+		end
+	end
+	restartIdle()
 end
 
 function GunController.onGunUnequipped()
 	gunEquipped = false
+	cancelPending()
+	AnimationController.stopCurrent()  --// cancelPending already called restartIdle which no-ops when !gunEquipped
 	debugPrint(DEBUG, `[GunController] Gun unequipped`)
 end
 
@@ -109,11 +161,9 @@ function GunController._handleServerResponse(payload: any)
 			warn("[GunController] StateOverride missing overriddenState table")
 			return
 		end
+		cancelPending()
 		stateMachine.isShooting = payload.overriddenState.isShooting == true
-		if safetyTimeoutThread then
-			task.cancel(safetyTimeoutThread)
-			safetyTimeoutThread = nil
-		end
+		stateMachine.isReloading = payload.overriddenState.isReloading == true
 		debugPrint(DEBUG, `[GunController] State overridden by server`)
 
 	elseif payload.payloadType == "ProjectileHitConfirm" then
@@ -124,12 +174,8 @@ function GunController._handleServerResponse(payload: any)
 end
 
 function GunController.onPlayerDied()
-	GunStateMachine.resetAll(stateMachine)
 	gunEquipped = false
-	if safetyTimeoutThread then
-		task.cancel(safetyTimeoutThread)
-		safetyTimeoutThread = nil
-	end
+	cancelPending()
 end
 
 return GunController
