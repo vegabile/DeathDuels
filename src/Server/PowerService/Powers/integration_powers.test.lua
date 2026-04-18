@@ -426,4 +426,55 @@ do
 	destroyCharacter(char)
 end
 
+
+--// ─── Case: Blinding ──────────────────────────────────────────────────────
+
+do
+	freshSession()
+	local BlindingPower = require(ServerScriptService.PowerService.Powers.Blinding)
+	local registry = makeRegistry(BlindingPower)
+	local activatorChar = buildCharacter("BlindActivator")
+	local targetChar = buildCharacter("BlindTarget")
+
+	--// Position target 20 studs in front of activator (along -Z = LookVector direction)
+	local actHrp = activatorChar:FindFirstChild("HumanoidRootPart")
+	local tgtHrp = targetChar:FindFirstChild("HumanoidRootPart")
+	actHrp.CFrame = CFrame.new(0, 10, 0)
+	tgtHrp.CFrame = CFrame.new(0, 10, -20)
+
+	local activator = mockPlayer({ name = "Blinder", userId = 30001, character = activatorChar })
+	local target = mockPlayer({ name = "Victim", userId = 30002, character = targetChar })
+
+	local origGetPlayers = Players.GetPlayers
+	Players.GetPlayers = function() return { activator, target } end
+	local origGetTeam = TeleportMetadataService.GetTeam
+	TeleportMetadataService.GetTeam = function(p)
+		if p == activator then return 1 end
+		if p == target then return 2 end
+		return nil
+	end
+
+	local svc = PowerService.new(activator, { Power = "blinding" }, registry)
+	local r = svc:Activate("blinding", {})
+	check("Blinding.1 accepted", r.success == true)
+
+	task.wait(0.1)
+	local projectile
+	for _, c in workspace:GetChildren() do
+		if c:IsA("BasePart") and c.Name == "BlindingProjectile" then projectile = c; break end
+	end
+	check("Blinding.2 projectile Part exists in workspace", projectile ~= nil)
+	check("Blinding.3 projectile has nonzero velocity",
+		projectile and projectile.AssemblyLinearVelocity.Magnitude > 1)
+
+	task.wait(3.1)
+	check("Blinding.4 projectile removed after lifetime",
+		projectile == nil or projectile.Parent == nil)
+
+	Players.GetPlayers = origGetPlayers
+	TeleportMetadataService.GetTeam = origGetTeam
+	destroyCharacter(activatorChar)
+	destroyCharacter(targetChar)
+end
+
 print(`\n{passed} passed, {failed} failed`)
