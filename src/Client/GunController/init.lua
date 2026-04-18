@@ -171,7 +171,12 @@ function GunController.performAction(actionName: string)
 		return
 	end
 
-	if actionName == "Shoot" and shootPoint then
+	if actionName == "Shoot" then
+		if not shootPoint then
+			warn(`[GunController] Shoot aborted — no ShootPoint attachment on {tool.Name}`)
+			GunStateMachine.resetAction(stateMachine, actionName)
+			return
+		end
 		--// ShootPoint is an Attachment — use its WorldCFrame as the rest-pose reference.
 		local worldCFrame = shootPoint.WorldCFrame
 		local restOffset = hrp.CFrame:ToObjectSpace(worldCFrame)
@@ -191,13 +196,18 @@ function GunController.performAction(actionName: string)
 			handle = nil,
 		}
 	else
-		warn(`[GunController] unsupported actionName={actionName} or missing ShootPoint`)
+		warn(`[GunController] unsupported actionName={actionName}`)
 		GunStateMachine.resetAction(stateMachine, actionName)
 		return
 	end
 
-	--// Stop idle so the action's animation owns the slot.
-	if idleHandle then idleHandle = nil end
+	--// Stop idle before the action animation takes the singleton slot.
+	--// (AnimationController.play / playChain will call stopCurrent() internally,
+	--// but clearing our reference here makes the ownership transfer explicit.)
+	if idleHandle then
+		idleHandle.stop()
+		idleHandle = nil
+	end
 
 	local profiles = SharedConfigs.AnimationProfiles
 	if actionName == "Shoot" then

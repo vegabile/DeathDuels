@@ -17,8 +17,6 @@ return {
 	TracerDuration = 0.2,
 	TracerWidth = 0.1,
 
-	MAX_SHOOT_ORIGIN_DISTANCE = 10,
-
 	AnimationProfiles = {
 		SmallPistol = {
 			[AnimationType.Idle]        = { id = "rbxassetid://86262836320062" },
