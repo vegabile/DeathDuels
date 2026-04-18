@@ -1,7 +1,7 @@
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
-local AnimationController = require(script.Parent.Parent.Parent.AnimationController)
+local AnimationType = require(ReplicatedStorage.Animations.AnimationType)
+local AnimationProfile = require(ReplicatedStorage.Animations.AnimationProfile)
 local SFXController = require(script.Parent.Parent.Parent.SFXController)
 
 local StabAction = {}
@@ -9,15 +9,13 @@ local StabAction = {}
 StabAction.name = "Stab"
 StabAction.cooldown = SharedConfigs.StabCooldown
 StabAction.duration = SharedConfigs.StabDuration
-StabAction.animationId = SharedConfigs.StabAnimationId
+
+do
+	local profile = AnimationProfile.resolve("Knife", SharedConfigs.AnimationProfiles, AnimationType.Stab)
+	StabAction.animationId = (profile and profile.id) or ""
+end
 
 function StabAction.clientExecute(_state, _directionVector)
-	local character = Players.LocalPlayer.Character
-	if not character then
-		warn("[StabAction] clientExecute: no character")
-		return
-	end
-	AnimationController.play(character, SharedConfigs.StabAnimationId)
 	SFXController.playUI(SharedConfigs.StabSoundId)
 end
 

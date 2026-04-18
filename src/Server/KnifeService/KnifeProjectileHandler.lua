@@ -25,7 +25,8 @@ function KnifeProjectileHandler.spawnProjectile(
 	directionVector: Vector3,
 	projectileTemplate: Instance,
 	blacklistedInstancesAndDescendants: { Instance }?,
-	onHit: (hitPlayer: Player) -> ()
+	onHit: (hitPlayer: Player) -> (),
+	spawnCFrameOverride: CFrame?
 )
 	knifeTrace(`spawnProjectile called for {player.Name}`)
 	local character = player.Character
@@ -49,7 +50,7 @@ function KnifeProjectileHandler.spawnProjectile(
 	local clonedHandle = ProjectileFactory.spawnProjectile({
 		template = projectileTemplate,
 		directionVector = directionVector,
-		spawnCFrame = projectileTemplate.Handle.CFrame,
+		spawnCFrame = spawnCFrameOverride or projectileTemplate.Handle.CFrame,
 		parent = knifeFolder,
 		transparency = 1,
 	}, player, blacklistedInstancesAndDescendants, onHit)

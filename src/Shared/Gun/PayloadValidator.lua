@@ -5,6 +5,11 @@ for _, name in Configs.ValidActions do
 	validActionSet[name] = true
 end
 
+--// Shoot is the only action that requires a known gun position for origin-distance checks.
+local REQUIRES_REST_ORIGIN: { [string]: boolean } = {
+	Shoot = true,
+}
+
 local PayloadValidator = {}
 
 function PayloadValidator.validate(payload: any): (boolean, string?)
@@ -36,6 +41,14 @@ function PayloadValidator.validate(payload: any): (boolean, string?)
 		if mag < 0.1 or mag > Configs.MaxDirectionMagnitude then
 			return false, `directionVector magnitude out of range: {mag}`
 		end
+	end
+
+	if REQUIRES_REST_ORIGIN[payload.desiredAction] then
+		if typeof(payload.restOrigin) ~= "Vector3" then
+			return false, "restOrigin is required and must be a Vector3"
+		end
+	elseif payload.restOrigin ~= nil and typeof(payload.restOrigin) ~= "Vector3" then
+		return false, "restOrigin must be a Vector3 when present"
 	end
 
 	return true, nil

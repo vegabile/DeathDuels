@@ -4,9 +4,28 @@ local WeaponModelValidator = require(ReplicatedStorage.WeaponModelValidator)
 local WeaponDistributor = {}
 
 local knifeTemplates: { [string]: Tool } = {}
+local knifeTemplatesLowercase: { [string]: Tool } = {}
 local defaultKnifeTemplate: Tool? = nil
 local gunTemplates: { [string]: Tool } = {}
+local gunTemplatesLowercase: { [string]: Tool } = {}
 local defaultGunTemplate: Tool? = nil
+
+local function normalizeTemplateKey(name: string): string
+	return string.lower(name)
+end
+
+local function resolveTemplate(
+	requestedName: string?,
+	templates: { [string]: Tool },
+	lowercaseTemplates: { [string]: Tool },
+	defaultTemplate: Tool
+): Tool
+	if not requestedName then
+		return defaultTemplate
+	end
+
+	return templates[requestedName] or lowercaseTemplates[normalizeTemplateKey(requestedName)] or defaultTemplate
+end
 
 local function normalizeKnifeHandle(tool: Tool)
 	local h = tool:FindFirstChild("Handle")
@@ -100,11 +119,13 @@ function WeaponDistributor.init(knives: { Tool }, guns: { Tool }): boolean
 		normalizeKnifeHandle(knife)
 		ensureKnifeHitbox(knife)
 		knifeTemplates[knife.Name] = knife
+		knifeTemplatesLowercase[normalizeTemplateKey(knife.Name)] = knife
 		if i == 1 then defaultKnifeTemplate = knife end
 	end
 	for i, gun in guns do
 		ensureGunShootPoint(gun)
 		gunTemplates[gun.Name] = gun
+		gunTemplatesLowercase[normalizeTemplateKey(gun.Name)] = gun
 		if i == 1 then defaultGunTemplate = gun end
 	end
 	return true
@@ -128,8 +149,8 @@ function WeaponDistributor.distributeToPlayer(player: Player, knifeName: string?
 		return
 	end
 
-	local knifeTemplate = (knifeName and knifeTemplates[knifeName]) or defaultKnifeTemplate
-	local gunTemplate = (gunName and gunTemplates[gunName]) or defaultGunTemplate
+	local knifeTemplate = resolveTemplate(knifeName, knifeTemplates, knifeTemplatesLowercase, defaultKnifeTemplate)
+	local gunTemplate = resolveTemplate(gunName, gunTemplates, gunTemplatesLowercase, defaultGunTemplate)
 
 	--// Idempotency: skip if the tool is already in the backpack or equipped on the character.
 	if not backpack:FindFirstChild(knifeTemplate.Name) and not character:FindFirstChild(knifeTemplate.Name) then
@@ -148,8 +169,10 @@ end
 --// Test-only: resets module state so tests can run in isolation
 function WeaponDistributor._reset()
 	knifeTemplates = {}
+	knifeTemplatesLowercase = {}
 	defaultKnifeTemplate = nil
 	gunTemplates = {}
+	gunTemplatesLowercase = {}
 	defaultGunTemplate = nil
 end
 

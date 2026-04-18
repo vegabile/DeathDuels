@@ -426,6 +426,37 @@ end
 do
 	WeaponDistributor._reset()
 
+	local knifeA = makeTool("KnifeAlphaCase")
+	addHandle(knifeA)
+	local knifeB = makeTool("KnifeBetaCase")
+	addHandle(knifeB)
+
+	local gun = makeTool("GunForCaseInsensitiveKnifeTest")
+	local gh = addHandle(gun)
+	addAttachment(gh, "ShootPoint")
+
+	local ok = WeaponDistributor.init({knifeA, knifeB}, {gun})
+	check("init with two knives for case-insensitive lookup → true", ok)
+
+	local mockPlayer, backpack = makePlayerWithBackpack()
+	WeaponDistributor.distributeToPlayer(mockPlayer, "knIFebEtaCaSe")
+
+	local distributedKnife = nil
+	for _, child in backpack:GetChildren() do
+		if child:IsA("Tool") and child:GetAttribute("IsKnife") then
+			distributedKnife = child
+			break
+		end
+	end
+	check("Case-insensitive knife distributed", distributedKnife ~= nil)
+	check("Case-insensitive knife is KnifeBetaCase", distributedKnife ~= nil and distributedKnife.Name == "KnifeBetaCase")
+
+	cleanAll()
+end
+
+do
+	WeaponDistributor._reset()
+
 	local knifeA = makeTool("KnifeAlpha2")
 	addHandle(knifeA)
 	local knifeB = makeTool("KnifeBeta2")
@@ -483,6 +514,37 @@ do
 		if child:GetAttribute("IsGun") then delivered = child end
 	end
 	check("distributeToPlayer picks gun by name", delivered ~= nil and delivered.Name == "GunBeta")
+
+	cleanAll()
+end
+
+do
+	WeaponDistributor._reset()
+
+	local knife = makeTool("KnifeForGunCaseSelect")
+	addHandle(knife)
+
+	local gunA = makeTool("GunAlphaCase")
+	local gunAHandle = addHandle(gunA)
+	gunAHandle.Size = Vector3.new(0.2, 1.0, 1.5)
+	addAttachment(gunAHandle, "ShootPoint")
+
+	local gunB = makeTool("GunBetaCase")
+	local gunBHandle = addHandle(gunB)
+	gunBHandle.Size = Vector3.new(0.2, 1.0, 1.5)
+	addAttachment(gunBHandle, "ShootPoint")
+
+	local ok = WeaponDistributor.init({knife}, {gunA, gunB})
+	check("init multi-gun for case-insensitive lookup → true", ok)
+
+	local mockPlayer, backpack = makePlayerWithBackpack()
+	WeaponDistributor.distributeToPlayer(mockPlayer, nil, "gUNbeTAcASe")
+
+	local delivered
+	for _, child in backpack:GetChildren() do
+		if child:GetAttribute("IsGun") then delivered = child end
+	end
+	check("distributeToPlayer picks gun by name case-insensitively", delivered ~= nil and delivered.Name == "GunBetaCase")
 
 	cleanAll()
 end

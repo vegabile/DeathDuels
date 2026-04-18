@@ -6,6 +6,7 @@ export type PlayerKnifeState = {
 	connections: { RBXScriptConnection },
 	lastActionTimestamp: number,
 	currentTickConnection: RBXScriptConnection?,
+	stabTouchedConn: RBXScriptConnection?,
 	alreadyHit: { [Player]: boolean },
 }
 

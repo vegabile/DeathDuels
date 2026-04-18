@@ -88,6 +88,10 @@ function KnifeService.OnPlayerDied(player: Player)
 		state.currentTickConnection:Disconnect()
 		state.currentTickConnection = nil
 	end
+	if state.stabTouchedConn then
+		state.stabTouchedConn:Disconnect()
+		state.stabTouchedConn = nil
+	end
 	state.alreadyHit = {}
 end
 
@@ -160,10 +164,9 @@ function KnifeService._handleActionRequest(player: Player, payload: any)
 	local directionVector = nil
 	if payload.directionVector then
 		directionVector = PayloadValidator.normalizeDirection(payload.directionVector)
-		knifeTrace(`normalized direction for {player.Name}: {directionVector}`)
 	end
 
-	action.serverExecute(player, state, directionVector)
+	action.serverExecute(player, state, directionVector, payload.restOrigin, payload.spawnCFrame)
 	knifeTrace(`serverExecute called for {action.name} by {player.Name}`)
 
 	task.delay(effectiveCooldown, function()
