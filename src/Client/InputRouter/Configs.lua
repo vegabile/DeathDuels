@@ -24,4 +24,13 @@ return {
 			touchButton = true,
 		},
 	},
+
+	PowerBindings = {
+		Activate = {
+			actionName  = "PowerActivate",
+			keyboard    = Enum.KeyCode.F,
+			gamepad     = Enum.KeyCode.ButtonX,
+			touchButton = false,
+		},
+	},
 }
