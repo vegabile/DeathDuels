@@ -88,6 +88,10 @@ function KnifeService.OnPlayerDied(player: Player)
 		state.currentTickConnection:Disconnect()
 		state.currentTickConnection = nil
 	end
+	if state.stabTouchedConn then
+		state.stabTouchedConn:Disconnect()
+		state.stabTouchedConn = nil
+	end
 	state.alreadyHit = {}
 end
 

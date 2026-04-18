@@ -71,11 +71,13 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 
 	--// Primary detection: Heartbeat overlap query for the full window.
 	local heartbeatConn: RBXScriptConnection? = nil
-	local touchedConn: RBXScriptConnection? = nil
 
 	local function tearDown()
 		if heartbeatConn then heartbeatConn:Disconnect() heartbeatConn = nil end
-		if touchedConn then touchedConn:Disconnect() touchedConn = nil end
+		if playerState.stabTouchedConn then
+			playerState.stabTouchedConn:Disconnect()
+			playerState.stabTouchedConn = nil
+		end
 		playerState.alreadyHit = {}
 		playerState.currentTickConnection = nil
 	end
@@ -103,8 +105,8 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 	--// Keep compatibility with KnifeService.OnPlayerDied cleanup.
 	playerState.currentTickConnection = heartbeatConn
 
-	--// Supplementary detection: .Touched catches physics-contact cases the overlap loop can miss between frames.
-	touchedConn = hitbox.Touched:Connect(function(part)
+	--// Stored on playerState so OnPlayerDied can disconnect it if the stab window is active.
+	playerState.stabTouchedConn = hitbox.Touched:Connect(function(part)
 		local hitCharacter = part:FindFirstAncestorOfClass("Model")
 		local hitPlayer = hitCharacter and Players:GetPlayerFromCharacter(hitCharacter)
 		processHitPlayer(player, playerState, hitPlayer, hitCharacter)
@@ -115,6 +117,10 @@ function StabAction.serverCleanup(_player: Player, playerState: any)
 	if playerState.currentTickConnection then
 		playerState.currentTickConnection:Disconnect()
 		playerState.currentTickConnection = nil
+	end
+	if playerState.stabTouchedConn then
+		playerState.stabTouchedConn:Disconnect()
+		playerState.stabTouchedConn = nil
 	end
 	playerState.alreadyHit = {}
 end
