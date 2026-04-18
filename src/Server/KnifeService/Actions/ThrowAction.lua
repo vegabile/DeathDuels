@@ -41,9 +41,15 @@ function ThrowAction.serverExecute(
 	end
 
 	local character = player.Character
-	if not character then return end
+	if not character then
+		warn(`[KNIFE] [ThrowAction] no character for {player.Name}`)
+		return
+	end
 	local hrp = character:FindFirstChild("HumanoidRootPart")
-	if not hrp then return end
+	if not hrp then
+		warn(`[KNIFE] [ThrowAction] no HumanoidRootPart for {player.Name}`)
+		return
+	end
 
 	--// Distance-bound the restOrigin against HRP.
 	if (restOrigin - hrp.Position).Magnitude > AnimationsConfigs.MaxRestOriginDistance then
