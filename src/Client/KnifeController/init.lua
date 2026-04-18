@@ -163,10 +163,6 @@ function KnifeController._handleServerResponse(payload: any)
 		stateMachine.isStabbing = payload.overriddenState.isStabbing == true
 		stateMachine.isThrowing = payload.overriddenState.isThrowing == true
 		knifeTrace(`state override set stab={stateMachine.isStabbing} throw={stateMachine.isThrowing}`)
-		if safetyTimeoutThread then
-			task.cancel(safetyTimeoutThread)
-			safetyTimeoutThread = nil
-		end
 		knifeTrace("state overridden by server")
 
 	elseif payload.payloadType == "ProjectileHitConfirm" then
