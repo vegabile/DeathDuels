@@ -188,4 +188,26 @@ do
 	destroyCharacter(char)
 end
 
+--// ─── Case: WeaponBuff ────────────────────────────────────────────────────
+
+do
+	freshSession()
+	local WBPower = require(ServerScriptService.PowerService.Powers.WeaponBuff)
+	local registry = makeRegistry(WBPower)
+	local char = buildCharacter("WBChar")
+	local player = mockPlayer({ name = "WBTester", character = char })
+	local svc = PowerService.new(player, { Power = "weaponbuff" }, registry)
+
+	local r = svc:Activate("weaponbuff", {})
+	check("WeaponBuff.1 accepted", r.success == true)
+	check("WeaponBuff.2 KnifeCooldownMult set", player:GetAttribute("KnifeCooldownMult") == 0.74)
+	check("WeaponBuff.3 GunCooldownMult set", player:GetAttribute("GunCooldownMult") == 0.69)
+
+	task.wait(5.1)
+	check("WeaponBuff.4 KnifeCooldownMult cleared", player:GetAttribute("KnifeCooldownMult") == nil)
+	check("WeaponBuff.5 GunCooldownMult cleared", player:GetAttribute("GunCooldownMult") == nil)
+
+	destroyCharacter(char)
+end
+
 print(`\n{passed} passed, {failed} failed`)
