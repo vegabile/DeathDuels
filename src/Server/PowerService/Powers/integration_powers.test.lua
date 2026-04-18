@@ -282,4 +282,30 @@ do
 	destroyCharacter(char)
 end
 
+--// ─── Case: Ghost ─────────────────────────────────────────────────────────
+
+do
+	freshSession()
+	local GhostPower = require(ServerScriptService.PowerService.Powers.Ghost)
+	local registry = makeRegistry(GhostPower)
+	local char = buildCharacter("GhostChar")
+	local player = mockPlayer({ name = "Ghosted", character = char })
+	local svc = PowerService.new(player, { Power = "ghost" }, registry)
+
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	local head = char:FindFirstChild("Head")
+	local baseHrpT, baseHeadT = hrp.Transparency, head.Transparency
+
+	local r = svc:Activate("ghost", {})
+	check("Ghost.1 accepted", r.success == true)
+	check("Ghost.2 HRP transparent mid-duration", hrp.Transparency == 1)
+	check("Ghost.3 Head transparent mid-duration", head.Transparency == 1)
+
+	task.wait(4.1)
+	check("Ghost.4 HRP restored", math.abs(hrp.Transparency - baseHrpT) < 0.01)
+	check("Ghost.5 Head restored", math.abs(head.Transparency - baseHeadT) < 0.01)
+
+	destroyCharacter(char)
+end
+
 print(`\n{passed} passed, {failed} failed`)
