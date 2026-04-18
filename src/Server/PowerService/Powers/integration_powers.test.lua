@@ -236,4 +236,30 @@ do
 	destroyCharacter(char)
 end
 
+--// ─── Case: Dash ──────────────────────────────────────────────────────────
+
+do
+	freshSession()
+	local DashPower = require(ServerScriptService.PowerService.Powers.Dash)
+	local registry = makeRegistry(DashPower)
+	local char = buildCharacter("DashChar")
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	hrp.Anchored = false   --// LinearVelocity needs a dynamic HRP; gravity is fine since we destroy the char in <1s
+	local player = mockPlayer({ name = "Dasher", character = char })
+	local svc = PowerService.new(player, { Power = "dash" }, registry)
+
+	local r = svc:Activate("dash", {})
+	check("Dash.1 accepted", r.success == true)
+	check("Dash.2 CombatDisabled set mid-duration", player:GetAttribute("CombatDisabled") == true)
+	local lv = hrp:FindFirstChildOfClass("LinearVelocity")
+	check("Dash.3 LinearVelocity exists under HRP mid-duration", lv ~= nil)
+
+	task.wait(0.45)   --// duration + epsilon
+	check("Dash.4 CombatDisabled cleared", player:GetAttribute("CombatDisabled") == nil)
+	local lv2 = hrp:FindFirstChildOfClass("LinearVelocity")
+	check("Dash.5 LinearVelocity removed after duration", lv2 == nil)
+
+	destroyCharacter(char)
+end
+
 print(`\n{passed} passed, {failed} failed`)
