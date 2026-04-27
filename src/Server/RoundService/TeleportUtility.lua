@@ -5,13 +5,17 @@ local Configs = require(ReplicatedStorage.Round.Configs)
 
 local TeleportUtility = {}
 
-function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, roundResults: { any }, winningTeam: number?, disconnectedStats: { [string]: any }?)
+function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, roundResults: { any }, winningTeam: number?, disconnectedStats: { [string]: any }?, matchId: string?)
 	local delta = {}
 
 	for player, state in playerStates do
 		local kills = state:GetStat("kills")
 		delta[tostring(player.UserId)] = {
-			coinsEarned = kills * Configs.COINS_PER_KILL,
+			coinsEarned   = kills * Configs.COINS_PER_KILL,
+			xpEarned      = kills * Configs.XP_PER_KILL,
+			actionId      = matchId and `match:{matchId}:player:{player.UserId}` or nil,
+			kills         = kills,
+			matchesPlayed = 1,
 		}
 	end
 
@@ -19,7 +23,11 @@ function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, rou
 		for odUserId, data in disconnectedStats do
 			local kills = data.stats and data.stats.kills or 0
 			delta[odUserId] = {
-				coinsEarned = kills * Configs.COINS_PER_KILL,
+				coinsEarned   = kills * Configs.COINS_PER_KILL,
+				xpEarned      = kills * Configs.XP_PER_KILL,
+				actionId      = matchId and `match:{matchId}:player:{odUserId}` or nil,
+				kills         = kills,
+				matchesPlayed = 1,
 			}
 		end
 	end
