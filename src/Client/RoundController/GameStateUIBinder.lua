@@ -25,6 +25,8 @@ local function countTeamWins(roundResults): (number, number)
 	return teamOneWins, teamTwoWins
 end
 
+
+-- :)
 local function findTextLabel(root: Instance, labelName: string): TextLabel?
 	local label = root:FindFirstChild(labelName, true)
 	if label and label:IsA("TextLabel") then
