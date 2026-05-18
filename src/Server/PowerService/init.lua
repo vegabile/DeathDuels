@@ -8,6 +8,7 @@ local SharedPowerConfigs = require(ReplicatedStorage.Power.Configs)
 local ServerEventBus = require(ServerScriptService.ServerEventBus)
 
 local Configs = require(script.Configs)
+local EffectUtil = require(script.EffectUtil)
 local PowerRegistry = require(script.PowerRegistry)
 local RoundScope = require(script.RoundScope)
 local ServerTypes = require(script.Types)
@@ -25,7 +26,7 @@ ServerEventBus:Connect("RoundStateChanged", function(newState: string)
 	if newState ~= RoundConfigs.GAME_STATES.RoundActive then
 		RoundScope.Cleanup()
 	end
-end)
+end, { replayLast = true })
 
 local PowerService = {}
 PowerService.__index = PowerService
@@ -36,6 +37,10 @@ end
 
 local function secondsToMs(seconds: number): number
 	return math.floor((seconds * 1000) + 0.5)
+end
+
+local function isFiniteNumber(value: any): boolean
+	return type(value) == "number" and value == value and value > -math.huge and value < math.huge
 end
 
 local function applyLoadout(self, loadout: Loadout?)
@@ -117,6 +122,7 @@ function PowerService:SetLoadout(loadout: Loadout?)
 end
 
 function PowerService:Destroy()
+	EffectUtil.CleanupPlayer(self.player)
 	table.clear(self._cooldowns)
 	table.clear(self._lastAttempt)
 	self.player:SetAttribute("EquippedPower", nil)
@@ -150,7 +156,7 @@ function PowerService:Activate(powerName: string, payload: any): PowerResult
 	end
 	local char = self.player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	if not hum or hum.Health <= 0 then
+	if not hum or not isFiniteNumber(hum.Health) or hum.Health <= 0 then
 		return { success = false, reason = Reasons.InvalidState }
 	end
 

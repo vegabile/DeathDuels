@@ -32,17 +32,25 @@ local function processHitPlayer(attacker: Player, playerState: any, hitPlayer: P
 	local attackerChar = attacker.Character
 	local attackerRoot = attackerChar and attackerChar:FindFirstChild("HumanoidRootPart") :: BasePart?
 	local victimRoot = hitCharacter:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if attackerRoot and victimRoot and (attackerRoot.Position - victimRoot.Position).Magnitude > SharedConfigs.MAX_STAB_DISTANCE then
+	if not (attackerRoot and attackerRoot:IsA("BasePart") and victimRoot and victimRoot:IsA("BasePart")) then
+		return
+	end
+	if (attackerRoot.Position - victimRoot.Position).Magnitude > SharedConfigs.MAX_STAB_DISTANCE then
 		return
 	end
 
 	playerState.alreadyHit[hitPlayer] = true
 	local humanoid = hitCharacter:FindFirstChildOfClass("Humanoid")
 	if humanoid then
+		if hitPlayer:GetAttribute("ShieldActive") then
+			hitPlayer:SetAttribute("ShieldActive", nil)
+			debugPrint(DEBUG, `[StabAction] ShieldActive absorbed stab on {hitPlayer.Name}`)
+			return
+		end
 		humanoid:SetAttribute("LastDamageSource", attacker.UserId)
-		humanoid.Health = 0
+		humanoid:TakeDamage(SharedConfigs.StabDamage)
 	end
-	debugPrint(DEBUG, `[StabAction] {attacker.Name} killed {hitPlayer.Name}`)
+	debugPrint(DEBUG, `[StabAction] {attacker.Name} stabbed {hitPlayer.Name}`)
 end
 
 function StabAction.serverExecute(player: Player, playerState: any, _directionVector: Vector3?)
@@ -59,8 +67,8 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 		warn(`[KNIFE] [StabAction] no knife tool for {player.Name}`)
 		return
 	end
-	local hitbox = knifeTool:FindFirstChild("Hitbox") :: BasePart?
-	if not hitbox then
+	local hitbox = knifeTool:FindFirstChild("Hitbox")
+	if not (hitbox and hitbox:IsA("BasePart")) then
 		warn(`[KNIFE] [StabAction] no Hitbox on knife for {player.Name}`)
 		return
 	end
@@ -92,8 +100,8 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 		if not currentChar then return end
 		local currentTool = KnifeUtility.findKnifeTool(currentChar)
 		if not currentTool then return end
-		local currentHitbox = currentTool:FindFirstChild("Hitbox") :: BasePart?
-		if not currentHitbox then return end
+		local currentHitbox = currentTool:FindFirstChild("Hitbox")
+		if not (currentHitbox and currentHitbox:IsA("BasePart")) then return end
 
 		local parts = workspace:GetPartsInPart(currentHitbox, overlapParams)
 		for _, part in parts do
@@ -101,30 +109,7 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 			if not hitCharacter then continue end
 
 			local hitPlayer = Players:GetPlayerFromCharacter(hitCharacter)
-			if not hitPlayer then continue end
-			if hitPlayer == player then continue end
-			if TeleportMetadataService.GetTeam(hitPlayer) == TeleportMetadataService.GetTeam(player) then continue end
-			if playerState.alreadyHit[hitPlayer] then continue end
-
-			if attackerRoot then
-				local victimRoot = hitCharacter:FindFirstChild("HumanoidRootPart")
-				if victimRoot and (attackerRoot.Position - victimRoot.Position).Magnitude > SharedConfigs.MAX_STAB_DISTANCE then
-					continue
-				end
-			end
-
-			playerState.alreadyHit[hitPlayer] = true
-			local humanoid = hitCharacter:FindFirstChildOfClass("Humanoid")
-			if humanoid then
-				if hitPlayer:GetAttribute("ShieldActive") then
-					hitPlayer:SetAttribute("ShieldActive", nil)
-					debugPrint(DEBUG, `[StabAction] ShieldActive absorbed stab on {hitPlayer.Name}`)
-				else
-					humanoid:SetAttribute("LastDamageSource", player.UserId)
-					humanoid:TakeDamage(SharedConfigs.StabDamage)
-					debugPrint(DEBUG, `[StabAction] {player.Name} stabbed {hitPlayer.Name}`)
-				end
-			end
+			processHitPlayer(player, playerState, hitPlayer, hitCharacter)
 		end
 	end)
 	

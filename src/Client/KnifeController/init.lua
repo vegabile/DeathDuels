@@ -17,6 +17,9 @@ local AnimationsConfigs = require(ReplicatedStorage.Animations.Configs)
 local AnimationProfile = require(ReplicatedStorage.Animations.AnimationProfile)
 
 local function knifeTrace(message: string)
+	if Configs.DEBUG_MODE or SharedConfigs.DEBUG_MODE then
+		print(`[KnifeController] {message}`)
+	end
 end
 
 local KnifeController = {}
@@ -30,6 +33,7 @@ local remoteName: string = ""
 local remoteConnection: RBXScriptConnection? = nil
 local safetyTimeoutToken: CancellationTokenToken? = nil
 local pendingActionGeneration = 0
+local roundActive = false
 local pendingAction: {
 	generation: number,
 	sequenceId: number,
@@ -74,10 +78,11 @@ local function cancelPending()
 end
 
 ClientEventBus:Connect("RoundStateChanged", function(newState: string)
-	if newState ~= RoundConfigs.GAME_STATES.RoundActive then
+	roundActive = newState == RoundConfigs.GAME_STATES.RoundActive
+	if not roundActive then
 		cancelPending()
 	end
-end)
+end, { replayLast = true })
 
 function KnifeController.onKnifeEquipped()
 	knifeEquipped = true
@@ -157,6 +162,10 @@ end
 function KnifeController.performAction(actionName: string)
 	knifeTrace(`performAction begin action={actionName} equipped={knifeEquipped} seq={sequenceId}`)
 	if not knifeEquipped then return end
+	if not roundActive then
+		cancelPending()
+		return
+	end
 
 	local action = ActionRegistry.getAction(actionName)
 	if not action then return end
@@ -200,9 +209,6 @@ function KnifeController.performAction(actionName: string)
 	local animationId = ""
 	if profile then
 		animationId = profile.id
-	end
-	if animationId == "" then
-		warn(`[KNIFE] [KnifeController] {actionName} animation missing for {knifeTool.Name}; proceeding without animation`)
 	end
 
 	local animHandle = AnimationController.play(character, animationId)

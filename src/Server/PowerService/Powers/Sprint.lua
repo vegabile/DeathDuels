@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 
 local Configs = require(script.Parent.Parent.Configs)
+local EffectUtil = require(script.Parent.Parent.EffectUtil)
 local cfg = Configs.POWERS.Sprint
 
 local Sprint = {}
@@ -20,14 +21,7 @@ function Sprint:Execute(player: Player, _payload: any)
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	if not hum then warn(`[Sprint] No Humanoid for {player.Name}`); return end
 
-	local baseSpeed = hum.WalkSpeed
-	hum.WalkSpeed = baseSpeed * cfg.speedMult
-
-	task.delay(cfg.durationSec, function()
-		if hum and hum.Parent then
-			hum.WalkSpeed = baseSpeed
-		end
-	end)
+	EffectUtil.TemporaryProperty(player, hum, "WalkSpeed", hum.WalkSpeed * cfg.speedMult, cfg.durationSec)
 end
 
 return Sprint

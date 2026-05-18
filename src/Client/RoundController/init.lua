@@ -6,6 +6,19 @@ local GameStateUIBinder = require(script.GameStateUIBinder)
 
 local RoundController = {}
 local initialized = false
+local lastRoundState: string? = nil
+
+local function publishSnapshot(snapshot: any)
+	ClientEventBus:Fire("RoundUpdate", snapshot)
+	if type(snapshot) ~= "table" or type(snapshot.state) ~= "string" then
+		return
+	end
+	if snapshot.state == lastRoundState then
+		return
+	end
+	lastRoundState = snapshot.state
+	ClientEventBus:FireSticky("RoundStateChanged", snapshot.state)
+end
 
 function RoundController.Init()
 	if initialized then
@@ -16,7 +29,7 @@ function RoundController.Init()
 	GameStateUIBinder.Init()
 
 	NetworkRouter:Listen("RoundUpdate", function(snapshot)
-		ClientEventBus:Fire("RoundUpdate", snapshot)
+		publishSnapshot(snapshot)
 	end)
 
 	task.spawn(function()
@@ -24,7 +37,7 @@ function RoundController.Init()
 			return NetworkRouter:Call("RoundGetSnapshot")
 		end)
 		if ok and type(snapshot) == "table" then
-			ClientEventBus:Fire("RoundUpdate", snapshot)
+			publishSnapshot(snapshot)
 		end
 	end)
 end

@@ -11,7 +11,6 @@ local POWERS_BY_NAME = {
 	reveal = { displayName = "Reveal", cooldown = 15 },
 	fakeclone = { displayName = "Fake Clone", cooldown = 20 },
 	smokescreen = { displayName = "Smoke Screen", cooldown = 20 },
-	blinding = { displayName = "Blinding", cooldown = 15 },
 }
 
 return {

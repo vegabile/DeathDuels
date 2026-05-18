@@ -41,6 +41,10 @@ function DataService:GetCoin(player: Player): number?
 	return profile.Data.Coin
 end
 
+function DataService:IsProfileLoaded(player: Player): boolean
+	return Profiles[player] ~= nil
+end
+
 function DataService:AddCoin(player: Player, amount: number)
 	local profile = profileFor(player, "AddCoin")
 	if not profile then return end
@@ -148,7 +152,7 @@ function DataService:OnPlayerAdded(player: Player)
 	if player:IsDescendantOf(Players) and not LeavingFlags[player] then
 		Profiles[player] = profile
 		debugPrint(DEBUG, `[DataService] Profile stored for {player.Name}`)
-		ServerEventBus:Fire("ProfileLoaded", player)
+		ServerEventBus:FireSticky("ProfileLoaded", player)
 	else
 		debugPrint(DEBUG, `[DataService] {player.Name} left before profile loaded, ending session`)
 		IntentionalEnds[player] = true

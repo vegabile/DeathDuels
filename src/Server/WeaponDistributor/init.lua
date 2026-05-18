@@ -20,7 +20,7 @@ local function resolveTemplate(
 	lowercaseTemplates: { [string]: Tool },
 	defaultTemplate: Tool
 ): Tool
-	if not requestedName then
+	if type(requestedName) ~= "string" or requestedName == "" then
 		return defaultTemplate
 	end
 
@@ -40,7 +40,13 @@ local function normalizeKnifeHandle(tool: Tool)
 end
 
 local function ensureKnifeHitbox(tool: Tool)
-	if tool:FindFirstChild("Hitbox") then return end
+	local existing = tool:FindFirstChild("Hitbox")
+	if existing then
+		if not existing:IsA("BasePart") then
+			error(`[WeaponDistributor] {tool.Name}.Hitbox must be a BasePart`)
+		end
+		return
+	end
 
 	local handle = tool:FindFirstChild("Handle") :: BasePart
 	local bbCFrame, bbSize = tool:GetBoundingBox()
@@ -73,11 +79,20 @@ end
 local function ensureGunShootPoint(tool: Tool)
 	local handle = tool:FindFirstChild("Handle") :: BasePart
 
-	if handle:FindFirstChild("ShootPoint") then return end
+	local shootPoint = handle:FindFirstChild("ShootPoint")
+	if shootPoint then
+		if not shootPoint:IsA("Attachment") then
+			error(`[WeaponDistributor] {tool.Name}.Handle.ShootPoint must be an Attachment`)
+		end
+		return
+	end
 
 	
 	local existing = handle:FindFirstChild("ShootAttachment")
 	if existing then
+		if not existing:IsA("Attachment") then
+			error(`[WeaponDistributor] {tool.Name}.Handle.ShootAttachment must be an Attachment`)
+		end
 		existing.Name = "ShootPoint"
 		return
 	end

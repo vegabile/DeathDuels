@@ -7,7 +7,6 @@ local SFXController = {}
 
 function SFXController.playAt(soundId: string, position: Vector3?)
 	if soundId == "" then
-		warn("SFXController.playAt: soundId is blank, skipping")
 		return
 	end
 
@@ -36,7 +35,6 @@ end
 
 function SFXController.playUI(soundId: string)
 	if soundId == "" then
-		warn("SFXController.playUI: soundId is blank, skipping")
 		return
 	end
 

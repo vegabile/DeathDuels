@@ -11,6 +11,9 @@ local KnifeProjectileHandler = require(script.Parent.Parent.KnifeProjectileHandl
 local TeleportMetadataService = require(script.Parent.Parent.Parent.RoundService.TeleportMetadataService)
 
 local function knifeTrace(message: string)
+	if SharedConfigs.DEBUG_MODE then
+		print(`[ThrowAction] {message}`)
+	end
 end
 
 local ThrowAction = {}

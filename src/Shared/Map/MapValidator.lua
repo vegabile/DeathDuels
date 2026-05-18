@@ -4,7 +4,7 @@ local MapConfigs = require(ReplicatedStorage.Map.Configs)
 
 local MapValidator = {}
 
-function MapValidator.validate(mapName: any): (boolean, string?)
+function MapValidator.validate(mapName: any, queueType: number?): (boolean, string?)
 	if type(mapName) ~= "string" then
 		return false, "mapName is not a string"
 	end
@@ -47,15 +47,20 @@ function MapValidator.validate(mapName: any): (boolean, string?)
 	local redCount = 0
 	local blueCount = 0
 	for _, desc in mapModel:GetDescendants() do
-		if desc.Name == Configs.SPAWN_PARTS.Red then
+		if desc.Name == Configs.SPAWN_PARTS.Red and desc:IsA("BasePart") then
 			redCount += 1
-		elseif desc.Name == Configs.SPAWN_PARTS.Blue then
+		elseif desc.Name == Configs.SPAWN_PARTS.Blue and desc:IsA("BasePart") then
 			blueCount += 1
 		end
 	end
 
-	if redCount < Configs.MAX_PLAYERS_PER_TEAM or blueCount < Configs.MAX_PLAYERS_PER_TEAM then
-		warn(`[MapValidator] Map "{mapName}" has insufficient spawn parts: {redCount} red, {blueCount} blue (need {Configs.MAX_PLAYERS_PER_TEAM} each)`)
+	local requiredPerTeam = Configs.MAX_PLAYERS_PER_TEAM
+	if type(queueType) == "number" and Configs.GAME_MODES[queueType] then
+		requiredPerTeam = Configs.GAME_MODES[queueType].playersPerTeam
+	end
+
+	if redCount < requiredPerTeam or blueCount < requiredPerTeam then
+		warn(`[MapValidator] Map "{mapName}" has insufficient spawn parts: {redCount} red, {blueCount} blue (need {requiredPerTeam} each)`)
 		return false, `Map "{mapName}" has insufficient spawn parts`
 	end
 

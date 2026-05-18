@@ -6,6 +6,9 @@ local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
 local Types = require(script.Parent.Types)
 
 local function knifeTrace(message: string)
+	if SharedConfigs.DEBUG_MODE then
+		print(`[Knife.ProjectileFactory] {message}`)
+	end
 end
 
 

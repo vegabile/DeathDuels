@@ -10,14 +10,17 @@ local RoundService = require(script.Parent)
 local TeleportDataValidator = require(script.Parent.TeleportDataValidator)
 local PlayerReadiness = require(script.Parent.PlayerReadiness)
 local ServerEventBus = require(ServerScriptService.ServerEventBus)
+local DataService = require(ServerScriptService.DataService)
+local ReconnectService = require(ServerScriptService.ReconnectService)
 
 local roundSystem = nil
+local handled = setmetatable({}, { __mode = "k" }) :: { [Player]: boolean }
 
 
 
 ServerEventBus:Connect("ProfileLoaded", function(player: Player)
 	PlayerReadiness.recordFact(player, "ProfileLoaded")
-end)
+end, { replayLast = true })
 
 local function buildTemplateTeleportData(player: Player)
 	return {
@@ -30,17 +33,48 @@ local function buildTemplateTeleportData(player: Player)
 end
 
 local function setupPlayer(player: Player)
+	if handled[player] then
+		warn(`[RoundService.executor] setup skipped for {player.Name}: already handled`)
+		return
+	end
+	handled[player] = true
+
 	PlayerReadiness.ensureRecord(player)
+	if DataService:IsProfileLoaded(player) then
+		PlayerReadiness.recordFact(player, "ProfileLoaded")
+	end
 
 	local teleportData
+	local joinData = player:GetJoinData()
+	local rawData = joinData and joinData.TeleportData
+
+	if type(rawData) == "table" and rawData.reconnect == true then
+		if not roundSystem then
+			warn(`[Round] Reconnect rejected for {player.Name}: no active round system`)
+			ReconnectService.ReturnPlayerToLobby(player, "ReconnectUnavailable")
+			return
+		end
+
+		local ok, ticketOrReason = ReconnectService.ValidateReconnect(player, rawData, roundSystem:GetMatchId())
+		if not ok then
+			warn(`[Round] Reconnect rejected for {player.Name}: {ticketOrReason}`)
+			ReconnectService.ReturnPlayerToLobby(player, tostring(ticketOrReason))
+			return
+		end
+
+		local registered, registerReason = roundSystem:RegisterReconnect(player, ticketOrReason)
+		if not registered then
+			warn(`[Round] RegisterReconnect rejected for {player.Name}: {registerReason}`)
+			ReconnectService.ReturnPlayerToLobby(player, registerReason)
+			return
+		end
+		return
+	end
 
 	if GlobalConfigs.TEST_MODE then
 		print(`[Round] TEST_MODE — {player.Name} using template data (map: TestMap, 1v1)`)
 		teleportData = buildTemplateTeleportData(player)
 	else
-		local joinData = player:GetJoinData()
-		local rawData = joinData and joinData.TeleportData
-
 		local ok, err, sanitized = TeleportDataValidator.validate(rawData)
 		if not ok then
 			warn(`[Round] Invalid teleport data for {player.Name}: {err}`)
@@ -57,6 +91,23 @@ local function setupPlayer(player: Player)
 		if GlobalConfigs.TEST_MODE then
 			_G._testRoundSystem = roundSystem
 		end
+	elseif not GlobalConfigs.TEST_MODE then
+		if teleportData.matchId ~= roundSystem:GetMatchId() then
+			warn(`[Round] Join rejected for {player.Name}: match id mismatch`)
+			player:Kick(Configs.KICK_REASONS.InvalidTeleportData)
+			return
+		end
+		if not roundSystem:ContainsExpectedUserId(player.UserId) then
+			warn(`[Round] Join rejected for {player.Name}: not in original roster`)
+			player:Kick(Configs.KICK_REASONS.InvalidTeleportData)
+			return
+		end
+	end
+
+	if roundSystem:GetState() ~= Configs.GAME_STATES.WaitingForPlayers then
+		warn(`[Round] Join rejected for {player.Name}: match already started`)
+		player:Kick(Configs.KICK_REASONS.InvalidTeleportData)
+		return
 	end
 
 	
@@ -98,7 +149,7 @@ end
 Players.PlayerAdded:Connect(setupPlayer)
 
 for _, player in Players:GetPlayers() do
-	setupPlayer(player)
+	task.spawn(setupPlayer, player)
 end
 
 Players.PlayerRemoving:Connect(function(player: Player)

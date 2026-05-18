@@ -1,5 +1,5 @@
-
+local RunService = game:GetService("RunService")
 
 return {
-	TEST_MODE = true,
+	TEST_MODE = RunService:IsStudio(),
 }

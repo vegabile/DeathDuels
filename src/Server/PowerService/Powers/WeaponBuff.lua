@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 
 local Configs = require(script.Parent.Parent.Configs)
+local EffectUtil = require(script.Parent.Parent.EffectUtil)
 local cfg = Configs.POWERS.WeaponBuff
 
 local WeaponBuff = {}
@@ -15,13 +16,8 @@ function WeaponBuff.validatePayload(payload: any): (boolean, string?)
 end
 
 function WeaponBuff:Execute(player: Player, _payload: any)
-	player:SetAttribute("KnifeCooldownMult", cfg.knifeCooldownMult)
-	player:SetAttribute("GunCooldownMult", cfg.gunCooldownMult)
-
-	task.delay(cfg.durationSec, function()
-		player:SetAttribute("KnifeCooldownMult", nil)
-		player:SetAttribute("GunCooldownMult", nil)
-	end)
+	EffectUtil.TemporaryAttribute(player, "KnifeCooldownMult", cfg.knifeCooldownMult, cfg.durationSec)
+	EffectUtil.TemporaryAttribute(player, "GunCooldownMult", cfg.gunCooldownMult, cfg.durationSec)
 end
 
 return WeaponBuff

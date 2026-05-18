@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 
 local Configs = require(script.Parent.Parent.Configs)
+local EffectUtil = require(script.Parent.Parent.EffectUtil)
 local cfg = Configs.POWERS.QuickDraw
 
 local QuickDraw = {}
@@ -15,13 +16,8 @@ function QuickDraw.validatePayload(payload: any): (boolean, string?)
 end
 
 function QuickDraw:Execute(player: Player, _payload: any)
-	player:SetAttribute("KnifeCooldownMult", cfg.cooldownMult)
-	player:SetAttribute("GunCooldownMult", cfg.cooldownMult)
-
-	task.delay(cfg.durationSec, function()
-		player:SetAttribute("KnifeCooldownMult", nil)
-		player:SetAttribute("GunCooldownMult", nil)
-	end)
+	EffectUtil.TemporaryAttribute(player, "KnifeCooldownMult", cfg.cooldownMult, cfg.durationSec)
+	EffectUtil.TemporaryAttribute(player, "GunCooldownMult", cfg.cooldownMult, cfg.durationSec)
 end
 
 return QuickDraw

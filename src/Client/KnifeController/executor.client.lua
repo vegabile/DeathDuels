@@ -4,9 +4,13 @@ local KnifeController = require(script.Parent)
 local InputRouter = require(script.Parent.Parent.InputRouter)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 local ProjectileFactory = require(ReplicatedStorage.Knife.ProjectileFactory)
+local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
 
 local localPlayer = Players.LocalPlayer
 local function knifeTrace(message: string)
+	if SharedConfigs.DEBUG_MODE then
+		print(`[KnifeController.executor] {message}`)
+	end
 end
 
 local function setupCharacter(character)

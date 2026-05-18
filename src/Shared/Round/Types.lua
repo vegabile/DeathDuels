@@ -1,14 +1,15 @@
 export type GameState = "WaitingForPlayers" | "AssigningTeams" | "RoundActive"
 	| "PreparingPlayers" | "RoundIntermission" | "GameOver" | "TeleportingOut" | "Aborted"
 
-export type PlayerStatus = "Alive" | "Dead" | "Disconnected" | "Skipped"
+export type PlayerStatus = "Alive" | "Dead" | "Disconnected" | "Skipped" | "Positioning"
 
 export type PlayerStateData = {
-	player: Player,
+	player: { UserId: number, Name: string },
 	team: number,
 	status: PlayerStatus,
 	isInGame: boolean,
 	stats: { kills: number, deaths: number, points: number, [string]: number },
+	matchStats: { kills: number, deaths: number, points: number, [string]: number },
 }
 
 export type TeamStateData = {

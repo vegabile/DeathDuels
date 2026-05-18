@@ -1,6 +1,10 @@
 local Types = require(script.Parent.Types)
+local Configs = require(script.Parent.Configs)
 
 local function debugLine(message: string)
+	if Configs.DEBUG_MODE then
+		print(`[Knife.StateMachine] {message}`)
+	end
 end
 
 local KnifeStateMachine = {}

@@ -16,6 +16,8 @@ local function remoteName(player: Player): string
 	return `PowerAction_{player.UserId}`
 end
 
+local handled = setmetatable({}, { __mode = "k" }) :: { [Player]: boolean }
+
 local function fireResponse(player: Player, sequenceId: number, result: PowerResult)
 	NetworkRouter:Call(remoteName(player), player, {
 		sequenceId = sequenceId,
@@ -24,8 +26,12 @@ local function fireResponse(player: Player, sequenceId: number, result: PowerRes
 end
 
 local function setupPlayer(player: Player)
-	
-	
+	if handled[player] then
+		warn(`[PowerService.executor] setup skipped for {player.Name}: already handled`)
+		return
+	end
+	handled[player] = true
+
 	if PowerService.Get(player) ~= nil then return end
 
 	local name = remoteName(player)
@@ -61,7 +67,7 @@ end
 Players.PlayerAdded:Connect(setupPlayer)
 
 for _, player in Players:GetPlayers() do
-	setupPlayer(player)
+	task.spawn(setupPlayer, player)
 end
 
 Players.PlayerRemoving:Connect(function(player)

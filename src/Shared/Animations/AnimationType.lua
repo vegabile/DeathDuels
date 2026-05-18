@@ -6,5 +6,4 @@ return table.freeze({
 	Stab        = "Stab",
 	ShootLeadIn = "ShootLeadIn",
 	Shoot       = "Shoot",
-	Reload      = "Reload",
 })

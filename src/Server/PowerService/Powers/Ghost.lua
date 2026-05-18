@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 
 local Configs = require(script.Parent.Parent.Configs)
+local RoundScope = require(script.Parent.Parent.RoundScope)
 local cfg = Configs.POWERS.Ghost
 
 local Ghost = {}
@@ -47,8 +48,9 @@ function Ghost:Execute(player: Player, _payload: any)
 		end
 	end
 
-	hum.Died:Connect(revert)
-	task.delay(cfg.durationSec, revert)
+	local unregister = RoundScope.RegisterCleanup(revert)
+	hum.Died:Connect(unregister)
+	task.delay(cfg.durationSec, unregister)
 end
 
 return Ghost

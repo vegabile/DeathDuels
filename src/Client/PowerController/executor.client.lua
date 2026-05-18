@@ -6,7 +6,6 @@ local Input = require(script.Parent.Input)
 
 
 require(script.Parent.Effects.Reveal)
-require(script.Parent.Effects.Blind)
 
 PowerController.start()
 

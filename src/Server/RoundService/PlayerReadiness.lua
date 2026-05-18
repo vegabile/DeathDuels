@@ -69,7 +69,11 @@ end
 function PlayerReadiness.isComplete(player: Player): boolean
 	local rec = records[player]
 	if not rec then return false end
-	if not (player.Character and player.Character.PrimaryPart) then return false end 
+	local character = player.Character
+	if not character then return false end
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not (hrp and hrp:IsA("BasePart") and humanoid) then return false end
 	for _, name in Configs.REQUIRED_FACTS do
 		if not rec.facts[name] then return false end
 	end

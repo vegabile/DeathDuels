@@ -18,6 +18,7 @@ function TeamState:Recalculate()
 	local dead = 0
 	local disconnected = 0
 	local skipped = 0
+	local positioning = 0
 	local points = 0
 
 	for _, player in self.players do
@@ -33,6 +34,8 @@ function TeamState:Recalculate()
 			dead += 1
 		elseif state.status == Configs.PLAYER_STATUSES.Skipped then
 			skipped += 1
+		elseif state.status == Configs.PLAYER_STATUSES.Positioning then
+			positioning += 1
 		elseif state.status == Configs.PLAYER_STATUSES.Alive then
 			alive += 1
 		else
@@ -48,7 +51,8 @@ function TeamState:Recalculate()
 		deadPlayers = dead,
 		disconnectedPlayers = disconnected,
 		skippedPlayers = skipped,
-		totalPlayerCount = alive + dead + skipped,
+		positioningPlayers = positioning,
+		totalPlayerCount = alive + dead + skipped + positioning,
 		originalPlayerCount = self.originalPlayerCount,
 		points = points,
 	}

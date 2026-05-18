@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 
 local Configs = require(script.Parent.Parent.Configs)
+local EffectUtil = require(script.Parent.Parent.EffectUtil)
 local cfg = Configs.POWERS.ShieldPulse
 
 local ShieldPulse = {}
@@ -15,14 +16,7 @@ function ShieldPulse.validatePayload(payload: any): (boolean, string?)
 end
 
 function ShieldPulse:Execute(player: Player, _payload: any)
-	player:SetAttribute("ShieldActive", true)
-
-	task.delay(cfg.durationSec, function()
-		
-		if player:GetAttribute("ShieldActive") then
-			player:SetAttribute("ShieldActive", nil)
-		end
-	end)
+	EffectUtil.TemporaryAttribute(player, "ShieldActive", true, cfg.durationSec)
 end
 
 return ShieldPulse

@@ -4,18 +4,22 @@ local Configs = require(ReplicatedStorage.Round.Configs)
 local PlayerState = {}
 PlayerState.__index = PlayerState
 
-function PlayerState.new(player: Player, teamNumber: number)
+local function cloneDefaultStats()
 	local stats = {}
 	for key, value in Configs.DEFAULT_STATS do
 		stats[key] = value
 	end
+	return stats
+end
 
+function PlayerState.new(player: Player, teamNumber: number)
 	return setmetatable({
 		player = player,
 		team = teamNumber,
-		status = Configs.PLAYER_STATUSES.Alive,
-		isInGame = true,
-		stats = stats,
+		status = Configs.PLAYER_STATUSES.Positioning,
+		isInGame = false,
+		stats = cloneDefaultStats(),
+		matchStats = cloneDefaultStats(),
 		positionedThisRound = false,
 		_locked = false,
 	}, PlayerState)
@@ -41,6 +45,23 @@ function PlayerState:GetStat(key: string): any
 		warn(`[PlayerState] Unknown stat key: {key}`)
 	end
 	return self.stats[key]
+end
+
+function PlayerState:SetMatchStat(key: string, value: any): boolean
+	if self.matchStats[key] == nil and Configs.DEFAULT_STATS[key] == nil then
+		warn(`[PlayerState] Unknown match stat key: {key}`)
+		return false
+	end
+
+	self.matchStats[key] = value
+	return true
+end
+
+function PlayerState:GetMatchStat(key: string): any
+	if self.matchStats[key] == nil and Configs.DEFAULT_STATS[key] == nil then
+		warn(`[PlayerState] Unknown match stat key: {key}`)
+	end
+	return self.matchStats[key]
 end
 
 function PlayerState:SetAlive(isAlive: boolean)
@@ -71,8 +92,8 @@ function PlayerState:Reset()
 	for key, value in Configs.DEFAULT_STATS do
 		self.stats[key] = value
 	end
-	self.status = Configs.PLAYER_STATUSES.Alive
-	self.isInGame = true
+	self.status = Configs.PLAYER_STATUSES.Positioning
+	self.isInGame = false
 	self.positionedThisRound = false
 	self._locked = false
 end
@@ -82,13 +103,21 @@ function PlayerState:Serialize()
 	for key, value in self.stats do
 		statsCopy[key] = value
 	end
+	local matchStatsCopy = {}
+	for key, value in self.matchStats do
+		matchStatsCopy[key] = value
+	end
 
 	return {
-		player = self.player,
+		player = {
+			UserId = self.player.UserId,
+			Name = self.player.Name,
+		},
 		team = self.team,
 		status = self.status,
 		isInGame = self.isInGame,
 		stats = statsCopy,
+		matchStats = matchStatsCopy,
 	}
 end
 

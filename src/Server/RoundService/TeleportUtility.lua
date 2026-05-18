@@ -5,11 +5,23 @@ local Configs = require(ReplicatedStorage.Round.Configs)
 
 local TeleportUtility = {}
 
+local function isFiniteNumber(value: any): boolean
+	return type(value) == "number" and value == value and value > -math.huge and value < math.huge
+end
+
+local function sanitizeKills(value: any): number
+	if not isFiniteNumber(value) or value < 0 then
+		return 0
+	end
+	return math.floor(value)
+end
+
 function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, roundResults: { any }, winningTeam: number?, disconnectedStats: { [string]: any }?, matchId: string?)
 	local delta = {}
 
 	for player, state in playerStates do
-		local kills = state:GetStat("kills")
+		local rawKills = if type(state.GetMatchStat) == "function" then state:GetMatchStat("kills") else state:GetStat("kills")
+		local kills = sanitizeKills(rawKills)
 		delta[tostring(player.UserId)] = {
 			coinsEarned   = kills * Configs.COINS_PER_KILL,
 			xpEarned      = kills * Configs.XP_PER_KILL,
@@ -21,7 +33,8 @@ function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, rou
 
 	if disconnectedStats then
 		for odUserId, data in disconnectedStats do
-			local kills = data.stats and data.stats.kills or 0
+			local stats = data.matchStats or data.stats
+			local kills = sanitizeKills(stats and stats.kills or 0)
 			delta[odUserId] = {
 				coinsEarned   = kills * Configs.COINS_PER_KILL,
 				xpEarned      = kills * Configs.XP_PER_KILL,

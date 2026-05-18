@@ -33,6 +33,7 @@ local remoteName: string = ""
 local remoteConnection: RBXScriptConnection? = nil
 local safetyTimeoutToken: CancellationTokenToken? = nil
 local pendingActionGeneration = 0
+local roundActive = false
 local pendingAction: {
 	generation: number,
 	sequenceId: number,
@@ -91,10 +92,11 @@ local function cancelPending()
 end
 
 ClientEventBus:Connect("RoundStateChanged", function(newState: string)
-	if newState ~= RoundConfigs.GAME_STATES.RoundActive then
+	roundActive = newState == RoundConfigs.GAME_STATES.RoundActive
+	if not roundActive then
 		cancelPending()
 	end
-end)
+end, { replayLast = true })
 
 function GunController.onGunEquipped()
 	gunEquipped = true
@@ -177,6 +179,10 @@ end
 
 function GunController.performAction(actionName: string)
 	if not gunEquipped then return end
+	if not roundActive then
+		cancelPending()
+		return
+	end
 
 	local action = ActionRegistry.getAction(actionName)
 	if not action then return end
@@ -224,16 +230,6 @@ function GunController.performAction(actionName: string)
 			sequenceId = thisSeq,
 			actionName = actionName,
 			restOffset = restOffset,
-			handle = nil,
-			markerObserverDisconnect = nil,
-			releaseToken = nil,
-		}
-	elseif actionName == "Reload" then
-		pendingAction = {
-			generation = thisGen,
-			sequenceId = thisSeq,
-			actionName = actionName,
-			restOffset = nil,
 			handle = nil,
 			markerObserverDisconnect = nil,
 			releaseToken = nil,
@@ -293,23 +289,6 @@ function GunController.performAction(actionName: string)
 				sequenceId = snapshot.sequenceId,
 			})
 		end)
-	elseif actionName == "Reload" then
-		local reload = AnimationProfile.resolve(tool.Name, profiles, AnimationType.Reload)
-		if not reload or reload.id == "" then
-			warn(`[GunController] Reload animation missing for {tool.Name}; proceeding without animation`)
-			pendingAction.handle = AnimationController.play(character, "")
-		else
-			pendingAction.handle = AnimationController.play(character, reload.id)
-			if pendingAction.handle.isNoop then
-				warn(`[GunController] Reload animation failed to load for {tool.Name}; proceeding without animation`)
-			end
-		end
-
-		action.clientExecute(stateMachine, nil)
-		NetworkRouter:Call(remoteName, {
-			desiredAction = actionName,
-			sequenceId = thisSeq,
-		})
 	end
 
 	clearSafetyTimeout()
@@ -348,7 +327,6 @@ function GunController._handleServerResponse(payload: any)
 		end
 		cancelPending()
 		stateMachine.isShooting = payload.overriddenState.isShooting == true
-		stateMachine.isReloading = payload.overriddenState.isReloading == true
 		debugPrint(DEBUG, `[GunController] State overridden by server`)
 	elseif payload.payloadType == "ProjectileHitConfirm" then
 		debugPrint(DEBUG, `[GunController] Hit confirmed for {payload.actionName}`)

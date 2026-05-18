@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 
 local Configs = require(script.Parent.Parent.Configs)
+local EffectUtil = require(script.Parent.Parent.EffectUtil)
 local cfg = Configs.POWERS.Launch
 
 local Launch = {}
@@ -20,15 +21,8 @@ function Launch:Execute(player: Player, _payload: any)
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	if not hum then warn(`[Launch] No Humanoid for {player.Name}`); return end
 
-	local baseJump = hum.JumpPower
-	hum.JumpPower = baseJump * cfg.jumpPowerMult
+	EffectUtil.TemporaryProperty(player, hum, "JumpPower", hum.JumpPower * cfg.jumpPowerMult, cfg.durationSec)
 	hum.Jump = true   
-
-	task.delay(cfg.durationSec, function()
-		if hum and hum.Parent then
-			hum.JumpPower = baseJump
-		end
-	end)
 end
 
 return Launch

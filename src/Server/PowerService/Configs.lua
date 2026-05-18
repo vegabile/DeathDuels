@@ -14,19 +14,11 @@ return {
 		Reveal          = { cooldown = 15, durationSec = 4 },
 		FakeClone       = { cooldown = 20, durationSec = 8,   spawnOffset = 3 },
 		SmokeScreen     = { cooldown = 20, durationSec = 6,   spawnForward = 8 },
-		Blinding        = {
-			cooldown = 15,
-			blindDurationSec = 3,
-			projectileSpeed = 120,
-			projectileLifetime = 3,
-			aimAssistCone = math.rad(30),
-		},
 	},
 
 	BROADCAST_REMOTE = "PowerBroadcast",
 
 	EFFECT_TYPES = {
 		Reveal = "Reveal",
-		Blind  = "Blind",
 	},
 }

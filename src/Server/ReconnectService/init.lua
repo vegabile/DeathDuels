@@ -10,6 +10,14 @@ local ReconnectService = {}
 
 local store = MemoryStoreService:GetHashMap(ReconnectConfig.MEMORY_STORE_NAME)
 
+local function isFiniteNumber(value: any): boolean
+	return type(value) == "number" and value == value and value > -math.huge and value < math.huge
+end
+
+local function isPositiveInteger(value: any): boolean
+	return isFiniteNumber(value) and value > 0 and math.floor(value) == value
+end
+
 local function now(): number
 	return os.time()
 end
@@ -40,7 +48,7 @@ local function hasMatchIdentity(metadata: any): boolean
 	return type(metadata) == "table"
 		and type(metadata.matchId) == "string"
 		and metadata.matchId ~= ""
-		and type(metadata.placeId) == "number"
+		and isFiniteNumber(metadata.placeId)
 		and metadata.placeId > 0
 		and type(metadata.reservedServerAccessCode) == "string"
 		and metadata.reservedServerAccessCode ~= ""
@@ -97,7 +105,7 @@ local function isTicketValidForReconnect(ticket: any, player: Player, expectedMa
 	if ticket.status ~= ReconnectConfig.TICKET_STATUS.Active then
 		return false, "ticket-not-active"
 	end
-	if type(ticket.userId) == "number" and ticket.userId ~= player.UserId then
+	if not isPositiveInteger(ticket.userId) or ticket.userId ~= player.UserId then
 		return false, "ticket-user-mismatch"
 	end
 	if type(ticket.matchId) ~= "string" or ticket.matchId == "" then
@@ -106,13 +114,13 @@ local function isTicketValidForReconnect(ticket: any, player: Player, expectedMa
 	if expectedMatchId ~= nil and ticket.matchId ~= expectedMatchId then
 		return false, "ticket-match-mismatch"
 	end
-	if type(ticket.placeId) ~= "number" or ticket.placeId <= 0 then
+	if not isFiniteNumber(ticket.placeId) or ticket.placeId <= 0 then
 		return false, "ticket-missing-place"
 	end
 	if type(ticket.reservedServerAccessCode) ~= "string" or ticket.reservedServerAccessCode == "" then
 		return false, "ticket-missing-access-code"
 	end
-	if type(ticket.expiresAt) ~= "number" or ticket.expiresAt <= now() then
+	if not isFiniteNumber(ticket.expiresAt) or ticket.expiresAt <= now() then
 		return false, "ticket-expired"
 	end
 	return true, nil
@@ -177,7 +185,7 @@ function ReconnectService.WriteDisconnectTicket(metadata: any, player: Player, p
 		return false
 	end
 	local team = playerState.team
-	if type(team) ~= "number" then
+	if not isPositiveInteger(team) then
 		return false
 	end
 

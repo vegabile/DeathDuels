@@ -1,6 +1,5 @@
 export type GunStateMachine = {
 	isShooting: boolean,
-	isReloading: boolean,
 }
 
 export type GunActionConfig = {

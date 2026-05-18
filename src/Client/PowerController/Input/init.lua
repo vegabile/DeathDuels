@@ -26,6 +26,7 @@ local responseConnection: RBXScriptConnection? = nil
 local cooldownThread: thread? = nil
 local pendingTimeoutThread: thread? = nil
 local powerBound = false
+local characterAttachToken = 0
 
 local state = {
 	powerName = nil :: string?,
@@ -215,25 +216,48 @@ local function applyRoundEligibility()
 	refreshBinding()
 end
 
-local function attachCharacter(character: Model?)
-	if diedConnection then
-		diedConnection:Disconnect()
-		diedConnection = nil
-	end
-
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not humanoid then
-		state.alive = false
-		refreshBinding()
-		return
-	end
-
+local function bindHumanoid(humanoid: Humanoid)
 	state.alive = humanoid.Health > 0
 	diedConnection = humanoid.Died:Connect(function()
 		state.alive = false
 		refreshBinding()
 	end)
 	refreshBinding()
+end
+
+local function attachCharacter(character: Model?)
+	characterAttachToken += 1
+	local token = characterAttachToken
+
+	if diedConnection then
+		diedConnection:Disconnect()
+		diedConnection = nil
+	end
+
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		bindHumanoid(humanoid)
+		return
+	end
+
+	if not character then
+		state.alive = false
+		refreshBinding()
+		return
+	end
+
+	task.spawn(function()
+		local waited = character:WaitForChild("Humanoid", Configs.HUMANOID_WAIT_TIMEOUT)
+		if token ~= characterAttachToken then
+			return
+		end
+		if waited and waited:IsA("Humanoid") then
+			bindHumanoid(waited)
+		else
+			state.alive = false
+			refreshBinding()
+		end
+	end)
 end
 
 local function handleServerResponse(payload: any)

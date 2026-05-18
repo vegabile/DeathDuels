@@ -4,7 +4,22 @@ local Configs = require(ReplicatedStorage.Round.Configs)
 
 local TeleportDataValidator = {}
 
-local function validatePlayerList(list: any, fieldName: string): (boolean, string?)
+local function isFiniteNumber(value: any): boolean
+	return type(value) == "number" and value == value and value > -math.huge and value < math.huge
+end
+
+local function isPositiveInteger(value: any): boolean
+	return isFiniteNumber(value) and value > 0 and math.floor(value) == value
+end
+
+local function sanitizeString(value: any, fallback: string): string
+	if type(value) == "string" and value ~= "" then
+		return value
+	end
+	return fallback
+end
+
+local function validatePlayerList(list: any, fieldName: string, seenUserIds: { [number]: boolean }): (boolean, string?)
 	if type(list) ~= "table" then
 		return false, `{fieldName} is not a table`
 	end
@@ -15,9 +30,16 @@ local function validatePlayerList(list: any, fieldName: string): (boolean, strin
 		if type(entry) ~= "table" then
 			return false, `{fieldName}[{i}] is not a table`
 		end
-		if type(entry.UserId) ~= "number" then
+		if not isFiniteNumber(entry.UserId) then
 			return false, `{fieldName}[{i}].UserId is not a number`
 		end
+		if not isPositiveInteger(entry.UserId) then
+			return false, `{fieldName}[{i}].UserId must be a positive integer`
+		end
+		if seenUserIds[entry.UserId] then
+			return false, `{fieldName}[{i}].UserId is duplicated`
+		end
+		seenUserIds[entry.UserId] = true
 		if type(entry.Name) ~= "string" then
 			return false, `{fieldName}[{i}].Name is not a string`
 		end
@@ -39,7 +61,12 @@ end
 
 local function cloneTeamList(list)
 	local out = {}
-	for i, entry in list do out[i] = entry end
+	for i, entry in list do
+		out[i] = {
+			UserId = entry.UserId,
+			Name = entry.Name,
+		}
+	end
 	return out
 end
 
@@ -66,7 +93,7 @@ local function sanitizeParties(parties, roster)
 		if type(entry) ~= "table" then
 			return false, `parties[{partyId}] is not a table`, nil
 		end
-		if type(entry.leaderUserId) ~= "number" then
+		if not isPositiveInteger(entry.leaderUserId) then
 			return false, `parties[{partyId}].leaderUserId is not a number`, nil
 		end
 		if not roster[entry.leaderUserId] then
@@ -78,7 +105,7 @@ local function sanitizeParties(parties, roster)
 
 		local memberUserIds = {}
 		for i, userId in entry.memberUserIds do
-			if type(userId) ~= "number" then
+			if not isPositiveInteger(userId) then
 				return false, `parties[{partyId}].memberUserIds[{i}] is not a number`, nil
 			end
 			if not roster[userId] then
@@ -106,13 +133,18 @@ local function fillLoadouts(sanitized)
 		
 		local copy = {}
 		for k, v in sanitized.loadouts do
-			local powerName = v.Power or v.powerName
-			copy[k] = {
-				knifeName = v.knifeName,
-				gunName = v.gunName,
-				Power = powerName,
-				powerName = powerName,
-			}
+			if type(v) ~= "table" then
+				warn(`[TeleportDataValidator] loadouts[{tostring(k)}] is {typeof(v)} — defaulting`)
+				copy[k] = cloneDefaultLoadout()
+			else
+				local powerName = sanitizeString(v.Power or v.powerName, Configs.DEFAULT_LOADOUT.Power)
+				copy[k] = {
+					knifeName = sanitizeString(v.knifeName, Configs.DEFAULT_LOADOUT.knifeName),
+					gunName = sanitizeString(v.gunName, Configs.DEFAULT_LOADOUT.gunName),
+					Power = powerName,
+					powerName = powerName,
+				}
+			end
 		end
 		sanitized.loadouts = copy
 	end
@@ -146,24 +178,28 @@ function TeleportDataValidator.validate(teleportData: any): (boolean, string?, {
 		return false, "Teleport data is not a table", nil
 	end
 
-	local ok, err = validatePlayerList(teleportData.teamOnePlayers, "teamOnePlayers")
+	local seenUserIds = {}
+	local ok, err = validatePlayerList(teleportData.teamOnePlayers, "teamOnePlayers", seenUserIds)
 	if not ok then return false, err, nil end
 
-	ok, err = validatePlayerList(teleportData.teamTwoPlayers, "teamTwoPlayers")
+	ok, err = validatePlayerList(teleportData.teamTwoPlayers, "teamTwoPlayers", seenUserIds)
 	if not ok then return false, err, nil end
 
-	if type(teleportData.queueType) ~= "number" then
+	if not isFiniteNumber(teleportData.queueType) then
 		return false, "queueType is not a number", nil
 	end
-	ok, err = MapValidator.validate(teleportData.mapName)
+	if math.floor(teleportData.queueType) ~= teleportData.queueType or Configs.GAME_MODES[teleportData.queueType] == nil then
+		return false, "queueType is not a valid game mode index", nil
+	end
+	ok, err = MapValidator.validate(teleportData.mapName, teleportData.queueType)
 	if not ok then return false, err, nil end
-	if type(teleportData.timestamp) ~= "number" then
+	if not isFiniteNumber(teleportData.timestamp) then
 		return false, "timestamp is not a number", nil
 	end
 	if type(teleportData.matchId) ~= "string" or teleportData.matchId == "" then
 		return false, "matchId is missing or not a string", nil
 	end
-	if type(teleportData.placeId) ~= "number" or teleportData.placeId <= 0 then
+	if not isFiniteNumber(teleportData.placeId) or teleportData.placeId <= 0 then
 		return false, "placeId is missing or not a positive number", nil
 	end
 	if type(teleportData.reservedServerAccessCode) ~= "string" or teleportData.reservedServerAccessCode == "" then

@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 
 local Configs = require(script.Parent.Parent.Configs)
+local EffectUtil = require(script.Parent.Parent.EffectUtil)
 local cfg = Configs.POWERS.Adrenaline
 
 local Adrenaline = {}
@@ -20,18 +21,9 @@ function Adrenaline:Execute(player: Player, _payload: any)
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	if not hum then warn(`[Adrenaline] No Humanoid for {player.Name}`); return end
 
-	local baseSpeed = hum.WalkSpeed
-	hum.WalkSpeed = baseSpeed * cfg.speedMult
-	player:SetAttribute("KnifeCooldownMult", cfg.cooldownMult)
-	player:SetAttribute("GunCooldownMult", cfg.cooldownMult)
-
-	task.delay(cfg.durationSec, function()
-		if hum and hum.Parent then
-			hum.WalkSpeed = baseSpeed
-		end
-		player:SetAttribute("KnifeCooldownMult", nil)
-		player:SetAttribute("GunCooldownMult", nil)
-	end)
+	EffectUtil.TemporaryProperty(player, hum, "WalkSpeed", hum.WalkSpeed * cfg.speedMult, cfg.durationSec)
+	EffectUtil.TemporaryAttribute(player, "KnifeCooldownMult", cfg.cooldownMult, cfg.durationSec)
+	EffectUtil.TemporaryAttribute(player, "GunCooldownMult", cfg.cooldownMult, cfg.durationSec)
 end
 
 return Adrenaline

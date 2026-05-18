@@ -8,10 +8,18 @@ local PayloadValidator = {}
 
 
 
+local function isFiniteNumber(value: any): boolean
+	return type(value) == "number" and value == value and value > -math.huge and value < math.huge
+end
+
+local function isNonNegativeInteger(value: any): boolean
+	return isFiniteNumber(value) and value >= 0 and math.floor(value) == value
+end
+
 
 
 local function sanitizeSequenceId(raw: any): number
-	if type(raw) == "number" and raw >= 0 then return raw end
+	if isNonNegativeInteger(raw) then return raw end
 	return 0
 end
 
@@ -28,7 +36,7 @@ function PayloadValidator.validate(envelope: any): (boolean, PowerFailReason?, n
 		return false, Reasons.UnknownPower, sequenceId
 	end
 
-	if type(envelope.sequenceId) ~= "number" or envelope.sequenceId < 0 then
+	if not isNonNegativeInteger(envelope.sequenceId) then
 		return false, Reasons.InvalidTarget, sequenceId
 	end
 

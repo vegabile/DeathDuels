@@ -22,7 +22,17 @@ function FakeClone:Execute(player: Player, _payload: any)
 	local hrp = char:FindFirstChild("HumanoidRootPart")
 	if not hrp or not hrp:IsA("BasePart") then warn(`[FakeClone] No HRP for {player.Name}`); return end
 
-	local clone = char:Clone()
+	local wasArchivable = char.Archivable
+	char.Archivable = true
+	local clone: Model? = nil
+	local ok, err = pcall(function()
+		clone = char:Clone()
+	end)
+	char.Archivable = wasArchivable
+	if not ok or not clone then
+		warn(`[FakeClone] Character clone failed for {player.Name}: {err}`)
+		return
+	end
 
 	
 	for _, desc in clone:GetDescendants() do

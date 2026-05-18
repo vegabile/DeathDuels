@@ -2,6 +2,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 
 local Configs = require(script.Parent.Parent.Configs)
+local EffectUtil = require(script.Parent.Parent.EffectUtil)
 local cfg = Configs.POWERS.KnifeSpeedBoost
 
 local KnifeSpeedBoost = {}
@@ -15,11 +16,7 @@ function KnifeSpeedBoost.validatePayload(payload: any): (boolean, string?)
 end
 
 function KnifeSpeedBoost:Execute(player: Player, _payload: any)
-	player:SetAttribute("KnifeCooldownMult", cfg.knifeCooldownMult)
-
-	task.delay(cfg.durationSec, function()
-		player:SetAttribute("KnifeCooldownMult", nil)
-	end)
+	EffectUtil.TemporaryAttribute(player, "KnifeCooldownMult", cfg.knifeCooldownMult, cfg.durationSec)
 end
 
 return KnifeSpeedBoost

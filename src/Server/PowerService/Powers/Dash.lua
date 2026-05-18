@@ -2,6 +2,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 
 local Configs = require(script.Parent.Parent.Configs)
+local EffectUtil = require(script.Parent.Parent.EffectUtil)
+local RoundScope = require(script.Parent.Parent.RoundScope)
 local cfg = Configs.POWERS.Dash
 
 local Dash = {}
@@ -25,6 +27,7 @@ function Dash:Execute(player: Player, _payload: any)
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "DashAttachment"
 	attachment.Parent = hrp
+	RoundScope.Register(attachment)
 
 	local linearVelocity = Instance.new("LinearVelocity")
 	linearVelocity.Name = "DashVelocity"
@@ -33,14 +36,16 @@ function Dash:Execute(player: Player, _payload: any)
 	linearVelocity.ForceLimitMode = Enum.ForceLimitMode.Magnitude
 	linearVelocity.VectorVelocity = direction * cfg.impulseSpeed
 	linearVelocity.Parent = hrp
+	RoundScope.Register(linearVelocity)
 
-	player:SetAttribute("CombatDisabled", true)
+	EffectUtil.TemporaryAttribute(player, "CombatDisabled", true, cfg.durationSec)
 
-	task.delay(cfg.durationSec, function()
-		player:SetAttribute("CombatDisabled", nil)
+	local unregister = RoundScope.RegisterCleanup(function()
 		if linearVelocity and linearVelocity.Parent then linearVelocity:Destroy() end
 		if attachment and attachment.Parent then attachment:Destroy() end
 	end)
+
+	task.delay(cfg.durationSec, unregister)
 end
 
 return Dash
