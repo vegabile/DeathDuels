@@ -15,6 +15,7 @@ type TeleportMetadata = Types.TeleportMetadata
 
 local TeleportMetadataService = require(script.TeleportMetadataService)
 local PlayerReadiness = require(script.PlayerReadiness)
+local ServerEventBus = require(ServerScriptService.ServerEventBus)
 local ReconnectService = require(ServerScriptService.ReconnectService)
 local PowerService = require(ServerScriptService.PowerService)
 
@@ -23,6 +24,7 @@ RoundSystem.__index = RoundSystem
 
 local function setPowerRoundEligible(player: Player, eligible: boolean)
 	player:SetAttribute(SharedPowerConfigs.ROUND_ELIGIBLE_ATTRIBUTE, eligible)
+	player:SetAttribute(Configs.COMBAT_ELIGIBLE_ATTRIBUTE, eligible)
 end
 
 local function isTeamFullyDisconnected(teamSnapshot): boolean
@@ -78,6 +80,7 @@ function RoundSystem.new(metadata: TeleportMetadata)
 	self._roundResults = {}
 	self._disconnectedStats = {} :: { [string]: any }
 	self._listeners = {} :: { [string]: { (...any) -> () } }
+	self._roundToken = 0
 	self._broadcastRemote = NetworkRouter:CreateRemoteEvent("RoundUpdate")
 	self._snapshotRemote = NetworkRouter:CreateRemoteFunction("RoundGetSnapshot")
 	self._waitTask = nil
@@ -99,6 +102,7 @@ function RoundSystem.new(metadata: TeleportMetadata)
 	end)
 
 	ReconnectService.RegisterMatch(metadata)
+	ServerEventBus:FireSticky("RoundStateChanged", Configs.GAME_STATES.WaitingForPlayers)
 	RoundOrchestrator.enter(Configs.GAME_STATES.WaitingForPlayers, self)
 
 	return self
@@ -108,6 +112,21 @@ function RoundSystem:RegisterPlayer(player: Player)
 	if self._stateMachine:GetState() ~= Configs.GAME_STATES.WaitingForPlayers then
 		warn(`[RoundSystem] RegisterPlayer called outside WaitingForPlayers for {player.Name}`)
 		return
+	end
+	local hasProductionRoster = type(self._metadata.matchId) == "string" and self._metadata.matchId ~= ""
+	if hasProductionRoster and not self:ContainsExpectedUserId(player.UserId) then
+		warn(`[RoundSystem] RegisterPlayer rejected non-roster userId {player.UserId}`)
+		return
+	end
+	if self._playersByUserId[player.UserId] then
+		warn(`[RoundSystem] RegisterPlayer skipped duplicate userId {player.UserId}`)
+		return
+	end
+	for _, pending in self._pendingPlayers do
+		if pending.UserId == player.UserId then
+			warn(`[RoundSystem] RegisterPlayer skipped duplicate pending userId {player.UserId}`)
+			return
+		end
 	end
 	setPowerRoundEligible(player, false)
 	table.insert(self._pendingPlayers, player)
@@ -168,6 +187,7 @@ function RoundSystem:OnPlayerDied(player: Player)
 	end
 	playerState:SetAlive(false)
 	playerState:SetStat("deaths", playerState:GetStat("deaths") + 1)
+	playerState:SetMatchStat("deaths", playerState:GetMatchStat("deaths") + 1)
 
 	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 	local killerUserId = humanoid and humanoid:GetAttribute("LastDamageSource")
@@ -176,6 +196,7 @@ function RoundSystem:OnPlayerDied(player: Player)
 		local killerState = killer and self._playerStates[killer]
 		if killerState then
 			killerState:SetStat("kills", killerState:GetStat("kills") + 1)
+			killerState:SetMatchStat("kills", killerState:GetMatchStat("kills") + 1)
 		end
 	end
 
@@ -190,6 +211,23 @@ end
 
 function RoundSystem:GetMatchId(): string?
 	return self._metadata and self._metadata.matchId
+end
+
+function RoundSystem:ContainsExpectedUserId(userId: number): boolean
+	if type(userId) ~= "number" then
+		return false
+	end
+	for _, entry in self._metadata.teamOnePlayers do
+		if entry.UserId == userId then
+			return true
+		end
+	end
+	for _, entry in self._metadata.teamTwoPlayers do
+		if entry.UserId == userId then
+			return true
+		end
+	end
+	return false
 end
 
 function RoundSystem:IsMatchEnded(): boolean
@@ -341,11 +379,20 @@ end
 
 function RoundSystem:_transition(to: string)
 	if self._destroyed then return end
+	local isValid = self._stateMachine:ValidateTransition(to)
+	if not isValid then
+		return
+	end
+	if to == Configs.GAME_STATES.RoundActive then
+		self._roundNumber += 1
+		self._roundToken += 1
+	end
 	self._stateMachine:Transition(to)
 end
 
 function RoundSystem:_onStateChanged(from: string, to: string)
 	self:_fireEvent("StateChanged", from, to)
+	ServerEventBus:FireSticky("RoundStateChanged", to)
 	if to ~= Configs.GAME_STATES.RoundActive then
 		for _, playerState in self._playerStates do
 			setPowerRoundEligible(playerState.player, false)

@@ -21,9 +21,23 @@ local GunService = {}
 local currentRoundState: string = ""
 ServerEventBus:Connect("RoundStateChanged", function(newState: string)
 	currentRoundState = newState
-end)
+end, { replayLast = true })
 
 local playerStates: { [Player]: ServerTypes.PlayerGunState } = {}
+
+local function isFiniteNumber(value: any): boolean
+	return type(value) == "number" and value == value and value > -math.huge and value < math.huge
+end
+
+local function isPlayerCombatEligible(player: Player): boolean
+	if player:GetAttribute(RoundConfigs.COMBAT_ELIGIBLE_ATTRIBUTE) ~= true then
+		return false
+	end
+
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	return humanoid ~= nil and isFiniteNumber(humanoid.Health) and humanoid.Health > 0
+end
 
 function GunService._getRemoteName(player: Player): string
 	return `GunAction_{player.UserId}`
@@ -82,40 +96,49 @@ function GunService._hasGunEquipped(player: Player): boolean
 end
 
 function GunService._handleActionRequest(player: Player, payload: any)
+	local state = playerStates[player]
+	local sequenceId = PayloadValidator.sanitizeSequenceId(payload)
+
+	if not state then
+		warn(`[GunService] No state for {player.Name}`)
+		return
+	end
+
 	if currentRoundState ~= RoundConfigs.GAME_STATES.RoundActive then
 		warn(`[GunService] Action rejected: round state is {currentRoundState}`)
+		GunService._sendStateOverride(player, state, sequenceId)
 		return
 	end
 
 	if player:GetAttribute("CombatDisabled") then
 		warn(`[GunService] CombatDisabled on {player.Name} — rejecting action`)
-		local state = playerStates[player]
-		if state then GunService._sendStateOverride(player, state, (payload and payload.sequenceId) or 0) end
-		return
-	end
-
-	local state = playerStates[player]
-	if not state then
-		warn(`[GunService] No state for {player.Name}`)
+		GunService._sendStateOverride(player, state, sequenceId)
 		return
 	end
 
 	local valid, reason = PayloadValidator.validate(payload)
 	if not valid then
 		warn(`[GunService] Invalid payload from {player.Name}: {reason}`)
-		GunService._sendStateOverride(player, state, payload.sequenceId or 0)
+		GunService._sendStateOverride(player, state, sequenceId)
+		return
+	end
+
+	if not isPlayerCombatEligible(player) then
+		warn(`[GunService] {player.Name} is not combat eligible`)
+		GunService._sendStateOverride(player, state, sequenceId)
 		return
 	end
 
 	if not GunService._hasGunEquipped(player) then
 		warn(`[GunService] {player.Name} has no gun equipped`)
-		GunService._sendStateOverride(player, state, payload.sequenceId)
+		GunService._sendStateOverride(player, state, sequenceId)
 		return
 	end
 
 	local action = ActionRegistry.getAction(payload.desiredAction)
 	if not action then
 		warn(`[GunService] Unknown action requested: {payload.desiredAction}`)
+		GunService._sendStateOverride(player, state, sequenceId)
 		return
 	end
 
@@ -125,14 +148,14 @@ function GunService._handleActionRequest(player: Player, payload: any)
 	local timeSinceLast = now - state.lastActionTimestamp
 	if timeSinceLast < (effectiveCooldown - ServerConfigs.RATE_LIMIT_BUFFER) then
 		warn(`[GunService] Rate limit: {player.Name} ({timeSinceLast}s since last)`)
-		GunService._sendStateOverride(player, state, payload.sequenceId)
+		GunService._sendStateOverride(player, state, sequenceId)
 		return
 	end
 
 	local accepted = GunStateMachine.setActionActive(state.stateMachine, action.name)
 	if not accepted then
 		debugPrint(DEBUG, `[GunService] {player.Name} action rejected: state locked`)
-		GunService._sendStateOverride(player, state, payload.sequenceId)
+		GunService._sendStateOverride(player, state, sequenceId)
 		return
 	end
 

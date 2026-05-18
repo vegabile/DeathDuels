@@ -15,7 +15,10 @@ return {
 		Dead = "Dead",
 		Disconnected = "Disconnected",
 		Skipped = "Skipped",
+		Positioning = "Positioning",
 	},
+
+	COMBAT_ELIGIBLE_ATTRIBUTE = "CombatRoundEligible",
 
 	WAITING_PERIOD = 20,
 	ROUND_DURATION = 60,

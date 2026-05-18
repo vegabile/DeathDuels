@@ -13,6 +13,9 @@ local ServerConfigs = require(script.Configs)
 local ActionRegistry = require(script.ActionRegistry)
 
 local function knifeTrace(message: string)
+	if ServerConfigs.DEBUG_MODE then
+		print(`[KnifeService] {message}`)
+	end
 end
 
 local KnifeService = {}
@@ -20,9 +23,23 @@ local KnifeService = {}
 local currentRoundState: string = ""
 ServerEventBus:Connect("RoundStateChanged", function(newState: string)
 	currentRoundState = newState
-end)
+end, { replayLast = true })
 
 local playerStates: { [Player]: ServerTypes.PlayerKnifeState } = {}
+
+local function isFiniteNumber(value: any): boolean
+	return type(value) == "number" and value == value and value > -math.huge and value < math.huge
+end
+
+local function isPlayerCombatEligible(player: Player): boolean
+	if player:GetAttribute(RoundConfigs.COMBAT_ELIGIBLE_ATTRIBUTE) ~= true then
+		return false
+	end
+
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	return humanoid ~= nil and isFiniteNumber(humanoid.Health) and humanoid.Health > 0
+end
 
 function KnifeService._getRemoteName(player: Player): string
 	return `KnifeAction_{player.UserId}`
@@ -101,41 +118,50 @@ end
 function KnifeService._handleActionRequest(player: Player, payload: any)
 	knifeTrace(`_handleActionRequest from {player.Name}`)
 	knifeTrace(`currentRoundState={currentRoundState}`)
-	if currentRoundState ~= RoundConfigs.GAME_STATES.RoundActive then
-		warn(`[KNIFE] [KnifeService] Action rejected: round state is {currentRoundState}`)
-		return
-	end
-
-	if player:GetAttribute("CombatDisabled") then
-		warn(`[KNIFE] [KnifeService] CombatDisabled on {player.Name} — rejecting action`)
-		local state = playerStates[player]
-		if state then KnifeService._sendStateOverride(player, state, (payload and payload.sequenceId) or 0) end
-		return
-	end
-
 	local state = playerStates[player]
+	local sequenceId = PayloadValidator.sanitizeSequenceId(payload)
+
 	if not state then
 		warn(`[KNIFE] [KnifeService] No state for {player.Name}`)
 		return
 	end
 
-	knifeTrace(`payload for {player.Name}: desired={payload and payload.desiredAction} seq={payload and payload.sequenceId}`)
+	if currentRoundState ~= RoundConfigs.GAME_STATES.RoundActive then
+		warn(`[KNIFE] [KnifeService] Action rejected: round state is {currentRoundState}`)
+		KnifeService._sendStateOverride(player, state, sequenceId)
+		return
+	end
+
+	if player:GetAttribute("CombatDisabled") then
+		warn(`[KNIFE] [KnifeService] CombatDisabled on {player.Name} — rejecting action`)
+		KnifeService._sendStateOverride(player, state, sequenceId)
+		return
+	end
+
 	local valid, reason = PayloadValidator.validate(payload)
 	if not valid then
 		warn(`[KNIFE] [KnifeService] Invalid payload from {player.Name}: {reason}`)
-		KnifeService._sendStateOverride(player, state, payload.sequenceId or 0)
+		KnifeService._sendStateOverride(player, state, sequenceId)
+		return
+	end
+	knifeTrace(`payload for {player.Name}: desired={payload.desiredAction} seq={sequenceId}`)
+
+	if not isPlayerCombatEligible(player) then
+		warn(`[KNIFE] [KnifeService] {player.Name} is not combat eligible`)
+		KnifeService._sendStateOverride(player, state, sequenceId)
 		return
 	end
 
 	if not KnifeService._hasKnifeEquipped(player) then
 		warn(`[KNIFE] [KnifeService] {player.Name} has no knife equipped`)
-		KnifeService._sendStateOverride(player, state, payload.sequenceId)
+		KnifeService._sendStateOverride(player, state, sequenceId)
 		return
 	end
 
 	local action = ActionRegistry.getAction(payload.desiredAction)
 	if not action then
 		knifeTrace(`unknown action requested: {payload.desiredAction}`)
+		KnifeService._sendStateOverride(player, state, sequenceId)
 		return
 	end
 	knifeTrace(`resolved action={action.name}`)
@@ -146,14 +172,14 @@ function KnifeService._handleActionRequest(player: Player, payload: any)
 	local timeSinceLast = now - state.lastActionTimestamp
 	if timeSinceLast < (effectiveCooldown - ServerConfigs.RATE_LIMIT_BUFFER) then
 		warn(`[KNIFE] [KnifeService] Rate limit: {player.Name} ({timeSinceLast}s since last)`)
-		KnifeService._sendStateOverride(player, state, payload.sequenceId)
+		KnifeService._sendStateOverride(player, state, sequenceId)
 		return
 	end
 
 	local accepted = KnifeStateMachine.setActionActive(state.stateMachine, action.name)
 	if not accepted then
 		knifeTrace(`action rejected by state machine: {player.Name}`)
-		KnifeService._sendStateOverride(player, state, payload.sequenceId)
+		KnifeService._sendStateOverride(player, state, sequenceId)
 		return
 	end
 

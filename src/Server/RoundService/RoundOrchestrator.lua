@@ -4,7 +4,6 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Configs = require(ReplicatedStorage.Round.Configs)
 local GlobalConfigs = require(ReplicatedStorage.GlobalConfigs)
 local SharedPowerConfigs = require(ReplicatedStorage.Power.Configs)
-local ServerEventBus = require(ServerScriptService.ServerEventBus)
 local PowerService = require(ServerScriptService.PowerService)
 local WeaponDistributor = require(ServerScriptService.WeaponDistributor)
 
@@ -19,15 +18,16 @@ local RoundOrchestrator = {}
 
 local function setPowerRoundEligible(player: Player, eligible: boolean)
 	player:SetAttribute(SharedPowerConfigs.ROUND_ELIGIBLE_ATTRIBUTE, eligible)
+	player:SetAttribute(Configs.COMBAT_ELIGIBLE_ATTRIBUTE, eligible)
 end
 
 local function collectSpawnParts(mapModel)
 	local red = {}
 	local blue = {}
 	for _, desc in mapModel:GetDescendants() do
-		if desc.Name == Configs.SPAWN_PARTS.Red then
+		if desc.Name == Configs.SPAWN_PARTS.Red and desc:IsA("BasePart") then
 			table.insert(red, desc)
-		elseif desc.Name == Configs.SPAWN_PARTS.Blue then
+		elseif desc.Name == Configs.SPAWN_PARTS.Blue and desc:IsA("BasePart") then
 			table.insert(blue, desc)
 		end
 	end
@@ -86,6 +86,9 @@ local function loadCharacterAndRecord(player: Player, timeout: number): boolean
 	local humanoid = character:WaitForChild("Humanoid", Configs.CHAR_FACT_WAIT_TIMEOUT)
 	if not hrp or not humanoid then
 		return false
+	end
+	if hrp:IsA("BasePart") and character.PrimaryPart == nil then
+		character.PrimaryPart = hrp
 	end
 
 	PlayerReadiness.recordCharacterFact(player, token, "CharacterLoaded")
@@ -162,31 +165,29 @@ end
 
 
 
-local function exitSkippedOrPosition(system, player: Player, playerState, spawnPart: BasePart, loadout)
-	if playerState.positionedThisRound then return end
-	playerState.positionedThisRound = true
-
-	playerState.status = Configs.PLAYER_STATUSES.Alive
-	playerState:SetInGame(true)
-
+local function exitSkippedOrPosition(system, player: Player, playerState, spawnPart: BasePart, loadout): boolean
+	if playerState.positionedThisRound then return true end
 	local character = (player :: any).Character
 	if not character then
 		setPowerRoundEligible(player, false)
 		warn(`[Round] exitSkippedOrPosition: {player.Name} has no character; cannot position`)
-		return
+		return false
 	end
 
 	local hrp = character:FindFirstChild("HumanoidRootPart")
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	local positioned = false
-	if hrp and hrp:IsA("BasePart") then
-		hrp.Anchored = false
-		hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
-		positioned = true
+	if not (hrp and hrp:IsA("BasePart") and humanoid) then
+		setPowerRoundEligible(player, false)
+		warn(`[Round] exitSkippedOrPosition: {player.Name} missing HRP or Humanoid`)
+		return false
 	end
-	if humanoid then
-		humanoid.WalkSpeed = Configs.DEFAULT_WALK_SPEED
+
+	hrp.Anchored = false
+	hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
+	if character.PrimaryPart == nil then
+		character.PrimaryPart = hrp
 	end
+	humanoid.WalkSpeed = Configs.DEFAULT_WALK_SPEED
 
 	for _, child in character:GetChildren() do
 		if child:IsA("ForceField") then child:Destroy() end
@@ -195,7 +196,11 @@ local function exitSkippedOrPosition(system, player: Player, playerState, spawnP
 	local knifeName = loadout and loadout.knifeName
 	local gunName = loadout and loadout.gunName
 	WeaponDistributor.distributeToPlayer(player, knifeName, gunName)
-	setPowerRoundEligible(player, positioned and humanoid ~= nil)
+	playerState.positionedThisRound = true
+	playerState.status = Configs.PLAYER_STATUSES.Alive
+	playerState:SetInGame(true)
+	setPowerRoundEligible(player, true)
+	return true
 end
 
 local function enterWaitingForPlayers(system)
@@ -305,14 +310,15 @@ local function enterPreparingPlayers(system)
 end
 
 local function enterRoundActive(system)
-	system._roundNumber += 1
-	system._positioningPlayers = true   
+	local roundToken = system._roundToken
+	system._positioningPlayers = true
 
 	
 	
 	system._roundTimerTask = task.delay(Configs.ROUND_DURATION, function()
 		system._roundTimerTask = nil
 		if system._stateMachine:GetState() ~= Configs.GAME_STATES.RoundActive then return end
+		if system._roundToken ~= roundToken then return end
 
 		
 		local t1 = system._teamStates[1]:Recalculate()
@@ -337,8 +343,14 @@ local function enterRoundActive(system)
 
 	local remaining = 0
 	local finalized = false
+	local function isCurrentRound()
+		return system._roundToken == roundToken
+			and system._stateMachine:GetState() == Configs.GAME_STATES.RoundActive
+	end
+
 	local function finalize()
 		if finalized then return end
+		if not isCurrentRound() then return end
 		finalized = true
 		system._positioningPlayers = false
 		system:_broadcastUpdate()
@@ -363,26 +375,33 @@ local function enterRoundActive(system)
 				
 				continue
 			end
+			playerState.status = Configs.PLAYER_STATUSES.Positioning
+			playerState:SetInGame(false)
+			playerState.positionedThisRound = false
 
 			local spawnPart = spawns[((i - 1) % #spawns) + 1]
 			remaining += 1
 
 			task.spawn(function()
 				local ok, err = pcall(function()
+					if not isCurrentRound() or finalized then return end
 					
 					
 					
 					if not PlayerReadiness.isComplete(player) then
 						local ready = loadCharacterAndRecord(player, Configs.LATE_TELEPORT_GRACE)
+						if not isCurrentRound() or finalized then return end
 						if not ready then
 							applySkipped(system, player, playerState)
 							return
 						end
 					end
 					local loadout = if GlobalConfigs.TEST_MODE then Configs.DEFAULT_LOADOUT else TeleportMetadataService.GetLoadout(player.UserId)
-					exitSkippedOrPosition(system, player, playerState, spawnPart, loadout)
+					if not exitSkippedOrPosition(system, player, playerState, spawnPart, loadout) then
+						applySkipped(system, player, playerState)
+					end
 				end)
-				if not ok then
+				if not ok and isCurrentRound() and not finalized then
 					warn(`[Round] Positioning task errored for {player.Name}: {err}`)
 					applySkipped(system, player, playerState)
 				end
@@ -397,16 +416,17 @@ local function enterRoundActive(system)
 	
 	task.delay(Configs.POSITIONING_OUTER_TIMEOUT, function()
 		if finalized then return end
+		if not isCurrentRound() then return end
 		warn("[Round] Positioning outer safety timer fired — force-finalizing")
 		for _, player in system._roundRoster do
 			local state = system._playerStates[player]
 			if not state then continue end
 			local s = state.status
-			if s ~= Configs.PLAYER_STATUSES.Alive
+			if not state.positionedThisRound
 				and s ~= Configs.PLAYER_STATUSES.Skipped
 				and s ~= Configs.PLAYER_STATUSES.Disconnected
 			then
-				warn(`[Round] {player.Name} did not reach terminal state — forcing Skipped`)
+				warn(`[Round] {player.Name} was not positioned before timeout — forcing Skipped`)
 				applySkipped(system, player, state)
 			end
 		end
@@ -487,7 +507,7 @@ local function enterTeleportingOut(system)
 		end
 	end
 	local _, overallWinner = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
-	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, overallWinner, system._disconnectedStats)
+	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, overallWinner, system._disconnectedStats, system:GetMatchId())
 	local ok, err = TeleportUtility.teleportPlayersWithRetry(players, Configs.LOBBY_PLACE_ID, payload)
 	if not ok then
 		warn(`[Round] Teleport failed after retries: {err}`)
@@ -510,8 +530,6 @@ local handlers = {
 }
 
 function RoundOrchestrator.enter(state: string, system)
-	ServerEventBus:Fire("RoundStateChanged", state)
-
 	local handler = handlers[state]
 	if not handler then
 		warn(`[Round] No handler for state: {state}`)
