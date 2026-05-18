@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Dev Commands
 
 ```bash
-argon serve       # Start Argon sync server (keep running while editing in Studio)
-argon build       # Build the place file to disk
-wally install     # Install Lua dependencies into ServerPackages/
+argon serve
+argon build
+wally install
 ```
 
 Execution for testing/debugging happens via `mcp__robloxstudio__execute_luau` in the edit environment — never start a playtest.

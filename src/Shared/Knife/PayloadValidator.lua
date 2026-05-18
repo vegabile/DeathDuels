@@ -5,13 +5,12 @@ for _, name in Configs.ValidActions do
 	validActionSet[name] = true
 end
 
---// Actions that require a restOrigin in their payload. Stab is melee and does not.
+
 local REQUIRES_REST_ORIGIN: { [string]: boolean } = {
 	Throw = true,
 }
 
 local function debugLine(message: string)
-	print("[KNIFE] [PayloadValidator] " .. message)
 end
 
 local PayloadValidator = {}

@@ -2,7 +2,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ProjectileFactory = require(ReplicatedStorage.Knife.ProjectileFactory)
 
 local function knifeTrace(message: string)
-	print("[KNIFE] " .. message)
 end
 
 local KnifeProjectileHandler = {}

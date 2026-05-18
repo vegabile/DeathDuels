@@ -1,4 +1,4 @@
---// Pure lookup helper. No side effects; warn+nil on unknown inputs.
+
 
 export type ProfileEntry = {
 	id: string,

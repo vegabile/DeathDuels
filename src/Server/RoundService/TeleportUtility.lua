@@ -34,11 +34,12 @@ function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, rou
 
 	return {
 		delta = delta,
+		returnSpawnPartName = Configs.POST_ROUND_SPAWN_PART,
 	}
 end
 
 function TeleportUtility._teleportPlayers(players: { Player }, placeId: number, teleportData: {}): (boolean, string?)
-	--// TEST_MODE: suppress TeleportAsync so the Studio session stays open
+	
 	if GlobalConfigs.TEST_MODE then
 		warn("[TeleportUtility] TEST_MODE active — skipping TeleportAsync")
 		return true, nil

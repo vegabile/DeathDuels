@@ -18,7 +18,7 @@ function ShieldPulse:Execute(player: Player, _payload: any)
 	player:SetAttribute("ShieldActive", true)
 
 	task.delay(cfg.durationSec, function()
-		--// Idempotent: if an attacker already consumed the flag, this is a no-op.
+		
 		if player:GetAttribute("ShieldActive") then
 			player:SetAttribute("ShieldActive", nil)
 		end

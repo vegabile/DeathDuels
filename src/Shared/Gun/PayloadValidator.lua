@@ -5,7 +5,7 @@ for _, name in Configs.ValidActions do
 	validActionSet[name] = true
 end
 
---// Shoot is the only action that requires a known gun position for origin-distance checks.
+
 local REQUIRES_REST_ORIGIN: { [string]: boolean } = {
 	Shoot = true,
 }

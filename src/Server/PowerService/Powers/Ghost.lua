@@ -36,7 +36,7 @@ function Ghost:Execute(player: Player, _payload: any)
 	hum.HealthDisplayDistance = 0
 
 	local function revert()
-		if next(originals) == nil then return end   --// already reverted
+		if next(originals) == nil then return end   
 		for inst, t in originals do
 			if inst and inst.Parent then inst.Transparency = t end
 		end

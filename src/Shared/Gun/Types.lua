@@ -10,13 +10,13 @@ export type GunActionConfig = {
 	animationId: string,
 }
 
---// Server actions own authoritative logic (raycast, damage, tracer)
+
 export type ServerGunAction = GunActionConfig & {
 	serverExecute: (player: Player, playerState: any, directionVector: Vector3?, restOrigin: Vector3?) -> (),
 	serverCleanup: (player: Player, playerState: any) -> (),
 }
 
---// Client actions own prediction (local tracer)
+
 export type ClientGunAction = GunActionConfig & {
 	clientExecute: (state: GunStateMachine, directionVector: Vector3?) -> (),
 }

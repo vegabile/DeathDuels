@@ -6,17 +6,17 @@ type PowerFailReason = Types.PowerFailReason
 
 local PayloadValidator = {}
 
---// Best-effort sequenceId extraction — always returns a number ≥ 0, even on failure.
---// Its purpose is to produce a safe echo value so the client can correlate the
---// rejection response even when the raw sequenceId was malformed. The explicit
---// guard below is what actually decides accept/reject.
+
+
+
+
 local function sanitizeSequenceId(raw: any): number
 	if type(raw) == "number" and raw >= 0 then return raw end
 	return 0
 end
 
---// Returns (ok, reason?, sequenceId).
---// sequenceId is always returned so the handler can echo on rejection.
+
+
 function PayloadValidator.validate(envelope: any): (boolean, PowerFailReason?, number)
 	if type(envelope) ~= "table" then
 		return false, Reasons.InvalidTarget, 0
@@ -36,7 +36,7 @@ function PayloadValidator.validate(envelope: any): (boolean, PowerFailReason?, n
 		return false, Reasons.InvalidTarget, sequenceId
 	end
 
-	--// payload shape is intentionally `any` — per-power validation happens later in Power.validatePayload.
+	
 	return true, nil, sequenceId
 end
 

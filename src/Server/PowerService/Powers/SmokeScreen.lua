@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 
 local Configs = require(script.Parent.Parent.Configs)
+local RoundScope = require(script.Parent.Parent.RoundScope)
 local cfg = Configs.POWERS.SmokeScreen
 
 local SmokeScreen = {}
@@ -32,6 +33,7 @@ function SmokeScreen:Execute(player: Player, _payload: any)
 	part.Size = Vector3.new(1, 1, 1)
 	part.Position = origin
 	part.Parent = workspace
+	RoundScope.Register(part)
 
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Rate = 40

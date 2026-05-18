@@ -1,7 +1,12 @@
 export type PowerFailReason = "UnknownPower" | "OnCooldown" | "Debounced"
 	| "Locked" | "InvalidState" | "InvalidTarget" | "NoPermission"
 
-export type PowerResult = { success: boolean, reason: PowerFailReason? }
+export type PowerResult = {
+	success: boolean,
+	reason: PowerFailReason?,
+	cooldownEndsAtUnixMs: number?,
+	serverNowUnixMs: number?,
+}
 
 export type Power = {
 	name: string,

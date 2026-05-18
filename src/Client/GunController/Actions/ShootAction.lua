@@ -15,7 +15,7 @@ do
 	ShootAction.animationId = (profile and profile.id) or ""
 end
 
---// Invoked from the release callback in GunController. Animation is already playing via the chain.
+
 function ShootAction.clientExecute(_state, _directionVector)
 	SFXController.playUI(SharedConfigs.ShootSoundId)
 end

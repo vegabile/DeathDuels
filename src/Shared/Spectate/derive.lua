@@ -1,6 +1,6 @@
---// src/Shared/Spectate/derive.lua
---// Pure derivation from RoundUpdate snapshot to SpectateClientState.
---// No callbacks, no signals, no Roblox API calls beyond `warn`.
+
+
+
 
 local Types = require(script.Parent.Types)
 export type SpectateClientState = Types.SpectateClientState
@@ -72,7 +72,7 @@ local function derive(snapshot: any, localUserId: number, prevTargetUserId: numb
 	local selfEntry = players[localUserId]
 	if selfEntry == nil then
 		if isRoundActive then
-			--// Only noisy when it actually matters — absence is normal pre-round.
+			
 			warn(`[Spectate.derive] local user {localUserId} absent from snapshot during active round; failing closed`)
 		end
 		local s = emptyState()
@@ -86,7 +86,7 @@ local function derive(snapshot: any, localUserId: number, prevTargetUserId: numb
 	local selfTeam = selfEntry.team
 	local canSpectate = isRoundActive and (selfEliminated or not selfInGame)
 
-	--// Build availableTargets: teammates asc, then opponents asc.
+	
 	local teammates: { number } = {}
 	local opponents: { number } = {}
 	for userId, p in players do
@@ -105,7 +105,7 @@ local function derive(snapshot: any, localUserId: number, prevTargetUserId: numb
 	for _, id in teammates do table.insert(availableTargets, id) end
 	for _, id in opponents do table.insert(availableTargets, id) end
 
-	--// Target resolution.
+	
 	local currentTargetUserId: number? = nil
 	if prevTargetUserId ~= nil and table.find(availableTargets, prevTargetUserId) then
 		currentTargetUserId = prevTargetUserId

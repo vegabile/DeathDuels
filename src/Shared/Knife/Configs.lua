@@ -21,8 +21,8 @@ return {
 
 	MAX_STAB_DISTANCE = 15,
 
-	--// Server-owned stab hit window duration in seconds. Tune to match the
-	--// authored stab animation length when the ID is uploaded.
+	
+	
 	StabHitWindow = 1.0,
 
 	AnimationProfiles = {

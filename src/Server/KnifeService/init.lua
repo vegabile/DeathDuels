@@ -13,7 +13,6 @@ local ServerConfigs = require(script.Configs)
 local ActionRegistry = require(script.ActionRegistry)
 
 local function knifeTrace(message: string)
-	print("[KNIFE] " .. message)
 end
 
 local KnifeService = {}

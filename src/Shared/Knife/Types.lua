@@ -10,13 +10,13 @@ export type KnifeActionConfig = {
 	animationId: string,
 }
 
---// Server actions own authoritative logic (hitbox, projectile, damage)
+
 export type ServerKnifeAction = KnifeActionConfig & {
 	serverExecute: (player: Player, playerState: any, directionVector: Vector3?) -> (),
 	serverCleanup: (player: Player, playerState: any) -> (),
 }
 
---// Client actions own prediction (animation, cosmetic projectile)
+
 export type ClientKnifeAction = KnifeActionConfig & {
 	clientExecute: (state: KnifeStateMachine, directionVector: Vector3?) -> (),
 }

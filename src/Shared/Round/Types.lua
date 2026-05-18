@@ -1,7 +1,7 @@
 export type GameState = "WaitingForPlayers" | "AssigningTeams" | "RoundActive"
-	| "RoundIntermission" | "GameOver" | "TeleportingOut" | "Aborted"
+	| "PreparingPlayers" | "RoundIntermission" | "GameOver" | "TeleportingOut" | "Aborted"
 
-export type PlayerStatus = "Alive" | "Dead" | "Disconnected"
+export type PlayerStatus = "Alive" | "Dead" | "Disconnected" | "Skipped"
 
 export type PlayerStateData = {
 	player: Player,
@@ -34,6 +34,13 @@ export type TeleportPlayerEntry = {
 export type Loadout = {
 	knifeName: string?,
 	gunName: string?,
+	Power: string?,
+	powerName: string?,
+}
+
+export type TeleportPartyEntry = {
+	leaderUserId: number,
+	memberUserIds: { number },
 }
 
 export type TeleportMetadata = {
@@ -43,14 +50,23 @@ export type TeleportMetadata = {
 	mapName: string,
 	timestamp: number,
 	loadouts: { [string]: Loadout },
+	parties: { [string]: TeleportPartyEntry },
+	matchId: string,
+	placeId: number,
+	reservedServerAccessCode: string,
 }
 
 export type PlayerDelta = {
 	coinsEarned: number,
+	xpEarned: number?,
+	actionId: string?,
+	kills: number?,
+	matchesPlayed: number?,
 }
 
 export type GameToLobbyPayload = {
 	delta: { [string]: PlayerDelta },
+	returnSpawnPartName: string?,
 }
 
 export type WinConditionEvaluator = {

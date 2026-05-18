@@ -11,7 +11,6 @@ local KnifeProjectileHandler = require(script.Parent.Parent.KnifeProjectileHandl
 local TeleportMetadataService = require(script.Parent.Parent.Parent.RoundService.TeleportMetadataService)
 
 local function knifeTrace(message: string)
-	print("[KNIFE] " .. message)
 end
 
 local ThrowAction = {}
@@ -51,22 +50,19 @@ function ThrowAction.serverExecute(
 		return
 	end
 
-	--// Distance-bound the restOrigin against HRP.
+	
 	if (restOrigin - hrp.Position).Magnitude > AnimationsConfigs.MaxRestOriginDistance then
 		warn(`[KNIFE] [ThrowAction] restOrigin out of range for {player.Name}`)
 		return
 	end
 
-	--// Validate spawnCFrame or fall back.
-	local effectiveSpawnCFrame = spawnCFrame
-	if effectiveSpawnCFrame ~= nil
-		and (typeof(effectiveSpawnCFrame) ~= "CFrame"
-			or (effectiveSpawnCFrame.Position - hrp.Position).Magnitude > AnimationsConfigs.MaxRestOriginDistance)
+	
+	
+	if spawnCFrame ~= nil
+		and (typeof(spawnCFrame) ~= "CFrame"
+			or (spawnCFrame.Position - hrp.Position).Magnitude > AnimationsConfigs.MaxRestOriginDistance)
 	then
-		warn(`[KNIFE] [ThrowAction] spawnCFrame invalid — falling back to restOrigin`)
-		effectiveSpawnCFrame = CFrame.new(restOrigin)
-	elseif effectiveSpawnCFrame == nil then
-		effectiveSpawnCFrame = CFrame.new(restOrigin)
+		warn(`[KNIFE] [ThrowAction] spawnCFrame invalid - ignoring cosmetic pose`)
 	end
 
 	local knifeTool = KnifeUtility.findKnifeTool(character)
@@ -89,26 +85,26 @@ function ThrowAction.serverExecute(
 		table.insert(blacklist, clientKnifeProjectiles)
 	end
 
-	KnifeProjectileHandler.spawnProjectile(player, directionVector, knifeTool, blacklist, function(hitPlayer)
-		knifeTrace(`callback hitPlayer={hitPlayer.Name}`)
-		if TeleportMetadataService.GetTeam(hitPlayer) == TeleportMetadataService.GetTeam(player) then return end
-
-		if hitPlayer:GetAttribute("ShieldActive") then
-			hitPlayer:SetAttribute("ShieldActive", nil)
-			knifeTrace(`ShieldActive absorbed throw on {hitPlayer.Name}`)
-			return
-		end
-
-		local humanoid = hitPlayer.Character and hitPlayer.Character:FindFirstChildOfClass("Humanoid")
-		if humanoid then
-			humanoid:SetAttribute("LastDamageSource", player.UserId)
-			humanoid:TakeDamage(SharedConfigs.ThrowDamage)
-			knifeTrace(`damaged {hitPlayer.Name} for {SharedConfigs.ThrowDamage}`)
-		end
+	
+	
+	local authoritativeSpawn = CFrame.new(restOrigin)
+	local broadcastSpawn = authoritativeSpawn
+	if typeof(spawnCFrame) == "CFrame"
+		and (spawnCFrame.Position - hrp.Position).Magnitude <= AnimationsConfigs.MaxRestOriginDistance
+	then
+		broadcastSpawn = spawnCFrame
 	end
 
-	--// Authoritative projectile uses restOrigin as its spawn — gameplay is rest-pose-deterministic.
-	local authoritativeSpawn = CFrame.new(restOrigin)
+	for _, otherPlayer in Players:GetPlayers() do
+		if otherPlayer ~= player then
+			NetworkRouter:Call("KnifeThrowBroadcast", otherPlayer, {
+				throwerUserId = player.UserId,
+				knifeName = knifeTool.Name,
+				directionVector = directionVector,
+				spawnCFrame = broadcastSpawn,
+			})
+		end
+	end
 
 	KnifeProjectileHandler.spawnProjectile(
 		player,
@@ -117,11 +113,20 @@ function ThrowAction.serverExecute(
 		blacklist,
 		function(hitPlayer)
 			if TeleportMetadataService.GetTeam(hitPlayer) == TeleportMetadataService.GetTeam(player) then return end
+
+			if hitPlayer:GetAttribute("ShieldActive") then
+				hitPlayer:SetAttribute("ShieldActive", nil)
+				knifeTrace(`ShieldActive absorbed throw on {hitPlayer.Name}`)
+				return
+			end
+
 			local humanoid = hitPlayer.Character and hitPlayer.Character:FindFirstChildOfClass("Humanoid")
 			if humanoid then
 				humanoid:SetAttribute("LastDamageSource", player.UserId)
 				humanoid:TakeDamage(SharedConfigs.ThrowDamage)
+				knifeTrace(`damaged {hitPlayer.Name} for {SharedConfigs.ThrowDamage}`)
 			end
+
 			NetworkRouter:Call(`KnifeAction_{player.UserId}`, player, {
 				payloadType = "ProjectileHitConfirm",
 				actionName = "Throw",
@@ -132,7 +137,7 @@ function ThrowAction.serverExecute(
 end
 
 function ThrowAction.serverCleanup(_player: Player, _playerState: any)
-	--// Projectile cleanup is self-contained in KnifeProjectileHandler via Debris
+	
 end
 
 return ThrowAction

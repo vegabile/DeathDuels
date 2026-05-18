@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 
 local Configs = require(script.Parent.Parent.Configs)
+local RoundScope = require(script.Parent.Parent.RoundScope)
 local cfg = Configs.POWERS.FakeClone
 
 local FakeClone = {}
@@ -23,14 +24,14 @@ function FakeClone:Execute(player: Player, _payload: any)
 
 	local clone = char:Clone()
 
-	--// Strip scripts so the clone has no behavior
+	
 	for _, desc in clone:GetDescendants() do
 		if desc:IsA("Script") or desc:IsA("LocalScript") then
 			desc:Destroy()
 		end
 	end
 
-	--// Hide nameplate on the clone's humanoid
+	
 	local cloneHum = clone:FindFirstChildOfClass("Humanoid")
 	if cloneHum then
 		cloneHum.NameDisplayDistance = 0
@@ -43,6 +44,7 @@ function FakeClone:Execute(player: Player, _payload: any)
 		clone:PivotTo(offsetCFrame)
 	end
 
+	RoundScope.Register(clone)
 	Debris:AddItem(clone, cfg.durationSec)
 end
 

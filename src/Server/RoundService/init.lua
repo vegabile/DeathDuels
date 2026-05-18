@@ -1,7 +1,9 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 
 local Configs = require(ReplicatedStorage.Round.Configs)
+local SharedPowerConfigs = require(ReplicatedStorage.Power.Configs)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 
 local RoundStateMachine = require(script.RoundStateMachine)
@@ -12,9 +14,16 @@ local Types = require(ReplicatedStorage.Round.Types)
 type TeleportMetadata = Types.TeleportMetadata
 
 local TeleportMetadataService = require(script.TeleportMetadataService)
+local PlayerReadiness = require(script.PlayerReadiness)
+local ReconnectService = require(ServerScriptService.ReconnectService)
+local PowerService = require(ServerScriptService.PowerService)
 
 local RoundSystem = {}
 RoundSystem.__index = RoundSystem
+
+local function setPowerRoundEligible(player: Player, eligible: boolean)
+	player:SetAttribute(SharedPowerConfigs.ROUND_ELIGIBLE_ATTRIBUTE, eligible)
+end
 
 local function isTeamFullyDisconnected(teamSnapshot): boolean
 	if not teamSnapshot then
@@ -24,6 +33,29 @@ local function isTeamFullyDisconnected(teamSnapshot): boolean
 		return false
 	end
 	return teamSnapshot.disconnectedPlayers >= teamSnapshot.originalPlayerCount
+end
+
+local function isMatchEndedState(state: string): boolean
+	return state == Configs.GAME_STATES.GameOver
+		or state == Configs.GAME_STATES.TeleportingOut
+		or state == Configs.GAME_STATES.Aborted
+end
+
+local function replacePlayerInList(players: { Player }, userId: number, oldPlayer: Player?, newPlayer: Player): boolean
+	for i, existing in players do
+		if existing == oldPlayer or existing.UserId == userId then
+			players[i] = newPlayer
+			return true
+		end
+	end
+	return false
+end
+
+local function normalizeTicketLoadout(ticket: any)
+	if type(ticket) ~= "table" or type(ticket.loadout) ~= "table" then
+		return nil
+	end
+	return ticket.loadout
 end
 
 function RoundSystem.new(metadata: TeleportMetadata)
@@ -41,6 +73,8 @@ function RoundSystem.new(metadata: TeleportMetadata)
 	self._teamPlayers = { [1] = {}, [2] = {} } :: { [number]: { Player } }
 	self._teamStates = {} :: { [number]: any }
 	self._roundNumber = 0
+	self._playerStatesByUserId = {} :: { [number]: any }
+	self._playersByUserId = {} :: { [number]: Player }
 	self._roundResults = {}
 	self._disconnectedStats = {} :: { [string]: any }
 	self._listeners = {} :: { [string]: { (...any) -> () } }
@@ -51,6 +85,7 @@ function RoundSystem.new(metadata: TeleportMetadata)
 	self._mapModel = nil
 	self._destroyed = false
 	self._positioningPlayers = false
+	self._matchEnded = false
 
 	NetworkRouter:Listen("RoundGetSnapshot", function(_player: Player)
 		if self._destroyed then
@@ -63,6 +98,7 @@ function RoundSystem.new(metadata: TeleportMetadata)
 		self:_onStateChanged(from, to)
 	end)
 
+	ReconnectService.RegisterMatch(metadata)
 	RoundOrchestrator.enter(Configs.GAME_STATES.WaitingForPlayers, self)
 
 	return self
@@ -73,8 +109,8 @@ function RoundSystem:RegisterPlayer(player: Player)
 		warn(`[RoundSystem] RegisterPlayer called outside WaitingForPlayers for {player.Name}`)
 		return
 	end
+	setPowerRoundEligible(player, false)
 	table.insert(self._pendingPlayers, player)
-	print(`[Round] {player.Name} registered ({#self._pendingPlayers}/{self._expectedPlayerCount})`)
 	self:_broadcastUpdate()
 	if #self._pendingPlayers >= self._expectedPlayerCount then
 		self:_transition(Configs.GAME_STATES.AssigningTeams)
@@ -82,6 +118,7 @@ function RoundSystem:RegisterPlayer(player: Player)
 end
 
 function RoundSystem:UnregisterPlayer(player: Player)
+	setPowerRoundEligible(player, false)
 	local state = self._stateMachine:GetState()
 
 	if state == Configs.GAME_STATES.WaitingForPlayers then
@@ -91,13 +128,18 @@ function RoundSystem:UnregisterPlayer(player: Player)
 		return
 	end
 
-	--// Later states: preserve the roster entry. The roster is authoritative for
-	--// the round, and downstream iteration relies on PlayerState entries being
-	--// present even after disconnect (status flips to Disconnected instead).
+	
+	
+	
 	local playerState = self._playerStates[player]
 	if playerState then
 		playerState.status = Configs.PLAYER_STATUSES.Disconnected
+		playerState:SetInGame(false)
 		self._disconnectedStats[tostring(player.UserId)] = playerState:Serialize()
+		if not self:IsMatchEnded() then
+			local loadout = TeleportMetadataService.GetLoadout(player.UserId)
+			ReconnectService.WriteDisconnectTicket(self._metadata, player, playerState, loadout)
+		end
 	end
 
 	if state == Configs.GAME_STATES.RoundActive then
@@ -114,6 +156,7 @@ function RoundSystem:OnPlayerDied(player: Player)
 		warn(`[RoundSystem] OnPlayerDied called outside RoundActive for {player.Name}`)
 		return
 	end
+	setPowerRoundEligible(player, false)
 	local playerState = self._playerStates[player]
 	if not playerState then
 		warn(`[RoundSystem] OnPlayerDied: no state found for {player.Name}`)
@@ -143,6 +186,96 @@ end
 
 function RoundSystem:GetState(): string
 	return self._stateMachine:GetState()
+end
+
+function RoundSystem:GetMatchId(): string?
+	return self._metadata and self._metadata.matchId
+end
+
+function RoundSystem:IsMatchEnded(): boolean
+	return self._matchEnded or isMatchEndedState(self._stateMachine:GetState())
+end
+
+function RoundSystem:MarkMatchEnded()
+	if self._matchEnded then return end
+	self._matchEnded = true
+	ReconnectService.MarkMatchEnded(self._metadata)
+end
+
+function RoundSystem:RegisterReconnect(player: Player, ticket: any): (boolean, string?)
+	if self:IsMatchEnded() then
+		return false, "match-ended"
+	end
+
+	setPowerRoundEligible(player, false)
+	local userId = player.UserId
+	local playerState = self._playerStatesByUserId[userId]
+	if not playerState then
+		warn(`[RoundSystem] Reconnect rejected for {player.Name}: no participant state for userId {userId}`)
+		return false, "participant-not-found"
+	end
+
+	local oldPlayer = self._playersByUserId[userId] or playerState.player
+	if oldPlayer and oldPlayer ~= player then
+		self._playerStates[oldPlayer] = nil
+	end
+
+	local team = if type(ticket) == "table" and type(ticket.team) == "number" then ticket.team else playerState.team
+	playerState.team = team
+	playerState.player = player
+	playerState.isInGame = false
+	playerState.positionedThisRound = false
+
+	self._playerStates[player] = playerState
+	self._playersByUserId[userId] = player
+	self._playerStatesByUserId[userId] = playerState
+	self._disconnectedStats[tostring(userId)] = nil
+
+	replacePlayerInList(self._roundRoster, userId, oldPlayer, player)
+	replacePlayerInList(self._teamPlayers[1], userId, oldPlayer, player)
+	replacePlayerInList(self._teamPlayers[2], userId, oldPlayer, player)
+	TeleportMetadataService.SetTeam(userId, team)
+
+	local loadout = normalizeTicketLoadout(ticket) or TeleportMetadataService.GetLoadout(userId)
+	if loadout then
+		TeleportMetadataService.SetLoadout(userId, loadout)
+		PowerService.AssignLoadout(player, loadout)
+	end
+	PlayerReadiness.recordFact(player, "LoadoutResolved")
+
+	local applied = false
+	local characterConnection: RBXScriptConnection? = nil
+	local function applySpectatorState()
+		if applied then return end
+		applied = true
+		if characterConnection then
+			characterConnection:Disconnect()
+			characterConnection = nil
+		end
+		playerState.isInGame = false
+		RoundOrchestrator.ApplySkipped(self, player, playerState)
+		playerState.isInGame = false
+		self:_fireEvent("PlayerStatusChanged", player, Configs.PLAYER_STATUSES.Skipped)
+		self:_broadcastUpdate()
+	end
+
+	if player.Character then
+		applySpectatorState()
+	else
+		characterConnection = player.CharacterAdded:Connect(function()
+			task.defer(applySpectatorState)
+		end)
+		local ok, err = pcall(function()
+			player:LoadCharacter()
+		end)
+		if not ok then
+			warn(`[RoundSystem] Reconnect LoadCharacter failed for {player.Name}: {err}`)
+			applySpectatorState()
+		end
+		task.delay(Configs.CHAR_FACT_WAIT_TIMEOUT, applySpectatorState)
+	end
+
+	return true, nil
 end
 
 function RoundSystem:GetSnapshot()
@@ -182,6 +315,7 @@ function RoundSystem:Abort()
 end
 
 function RoundSystem:Destroy()
+	self:MarkMatchEnded()
 	self._destroyed = true
 	if self._waitTask then
 		task.cancel(self._waitTask)
@@ -212,7 +346,15 @@ end
 
 function RoundSystem:_onStateChanged(from: string, to: string)
 	self:_fireEvent("StateChanged", from, to)
+	if to ~= Configs.GAME_STATES.RoundActive then
+		for _, playerState in self._playerStates do
+			setPowerRoundEligible(playerState.player, false)
+		end
+	end
 	self:_broadcastUpdate()
+	if isMatchEndedState(to) then
+		self:MarkMatchEnded()
+	end
 	RoundOrchestrator.enter(to, self)
 end
 

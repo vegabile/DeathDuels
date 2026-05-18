@@ -4,11 +4,8 @@ local InputPosition = {}
 
 function InputPosition.getInputPosition(): Vector3
 	local player = Players.LocalPlayer
-	print("[KNIFE] [InputPosition] getting input position")
 	local mouse = player:GetMouse()
 	local camera = workspace.CurrentCamera
-	print(`[KNIFE] [InputPosition] mouse={mouse.X},{mouse.Y}`)
-
 	local unitRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
 
 	local params = RaycastParams.new()
@@ -18,11 +15,9 @@ function InputPosition.getInputPosition(): Vector3
 	local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, params)
 
 	if result then
-		print(`[KNIFE] [InputPosition] raycast hit at {result.Position}`)
 		return result.Position
 	else
 		local fallback = unitRay.Origin + unitRay.Direction * 1000
-		print(`[KNIFE] [InputPosition] raycast miss fallback={fallback}`)
 		return fallback
 	end
 end

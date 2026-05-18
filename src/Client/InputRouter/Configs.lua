@@ -4,7 +4,7 @@ return {
 	KnifeBindings = {
 		Stab = {
 			actionName = "KnifeStab",
-			keyboard = Enum.KeyCode.Q,
+			keyboard = Enum.KeyCode.F,
 			gamepad = Enum.KeyCode.ButtonL1,
 			touchButton = true,
 		},
@@ -28,6 +28,15 @@ return {
 			keyboard = Enum.KeyCode.R,
 			gamepad = Enum.KeyCode.ButtonX,
 			touchButton = true,
+		},
+	},
+
+	PowerBindings = {
+		Activate = {
+			actionName = "PowerActivate",
+			keyboard = Enum.KeyCode.Q,
+			gamepad = Enum.KeyCode.ButtonY,
+			touchButton = false,
 		},
 	},
 }

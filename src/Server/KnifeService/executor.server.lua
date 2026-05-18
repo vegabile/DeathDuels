@@ -6,7 +6,6 @@ local KnifeService = require(script.Parent)
 NetworkRouter:CreateRemoteEvent("KnifeThrowBroadcast")
 
 local function knifeTrace(message: string)
-	print("[KNIFE] [ServerExecutor] " .. message)
 end
 
 local function setupPlayer(player)

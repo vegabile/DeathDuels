@@ -1,7 +1,7 @@
---// Only files under src/Server/RoundService/ may require this module.
---// This is a dumb store: it writes facts, answers questions about records,
---// and fires ChangedSignal. It does NOT decide what is "ready" — that is
---// exclusively the RoundOrchestrator's job.
+
+
+
+
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Configs = require(ReplicatedStorage.Round.Configs)
@@ -69,7 +69,7 @@ end
 function PlayerReadiness.isComplete(player: Player): boolean
 	local rec = records[player]
 	if not rec then return false end
-	if not (player.Character and player.Character.PrimaryPart) then return false end --// FLAG: Refactor this into the existing pattern
+	if not (player.Character and player.Character.PrimaryPart) then return false end 
 	for _, name in Configs.REQUIRED_FACTS do
 		if not rec.facts[name] then return false end
 	end
@@ -93,7 +93,7 @@ function PlayerReadiness.beginCharacterLoad(player: any): number
 	rec.loadAttempt += 1
 	rec.facts.CharacterLoaded = nil
 	rec.facts.CharacterUsable = nil
-	--// Always fire once — token advance is a meaningful change even without fact clears.
+	
 	ChangedSignal:Fire()
 	return rec.loadAttempt
 end
@@ -145,7 +145,7 @@ function PlayerReadiness.waitForComplete(player: any, timeout: number): boolean
 	end
 end
 
---// Test-only: clears all records and resets the store.
+
 function PlayerReadiness._reset()
 	records = {}
 end

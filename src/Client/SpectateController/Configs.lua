@@ -1,5 +1,5 @@
---// src/Client/SpectateController/Configs.lua
---// Config-only; no magic values elsewhere in the controller.
+
+
 
 return {
 	INPUT_NEXT_TARGET = Enum.KeyCode.E,

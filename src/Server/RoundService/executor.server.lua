@@ -13,8 +13,8 @@ local ServerEventBus = require(ServerScriptService.ServerEventBus)
 
 local roundSystem = nil
 
---// Subscribe once at script load. Producers fire ProfileLoaded;
---// we translate to a readiness fact write.
+
+
 ServerEventBus:Connect("ProfileLoaded", function(player: Player)
 	PlayerReadiness.recordFact(player, "ProfileLoaded")
 end)
@@ -26,10 +26,6 @@ local function buildTemplateTeleportData(player: Player)
 		queueType = 1,
 		mapName = "TestMap",
 		timestamp = os.time(),
-		loadouts = {
-			[tostring(player.UserId)] = { knifeName = nil, gunName = nil },
-			["0"] = { knifeName = nil, gunName = nil },
-		},
 	}
 end
 
@@ -63,8 +59,8 @@ local function setupPlayer(player: Player)
 		end
 	end
 
-	--// Cosmetic waiting-area spawn. This CharacterAdded handler does NOT write
-	--// readiness facts — those are written exclusively by loadCharacterAndRecord.
+	
+	
 	player.CharacterAdded:Connect(function(character)
 		if roundSystem:GetState() == Configs.GAME_STATES.WaitingForPlayers then
 			local rootPart = character:WaitForChild("HumanoidRootPart", Configs.CHAR_FACT_WAIT_TIMEOUT)
@@ -90,10 +86,10 @@ local function setupPlayer(player: Player)
 
 	roundSystem:RegisterPlayer(player)
 
-	--// RegisterPlayer can synchronously advance into the round-start pipeline once
-	--// the expected roster is full. Only do the cosmetic waiting-room spawn if the
-	--// server is still actually waiting; otherwise this extra LoadCharacter would
-	--// overwrite the orchestrator's first-round placement for the last joiner.
+	
+	
+	
+	
 	if roundSystem:GetState() == Configs.GAME_STATES.WaitingForPlayers then
 		player:LoadCharacter()
 	end

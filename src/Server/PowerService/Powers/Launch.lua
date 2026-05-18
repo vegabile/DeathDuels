@@ -22,7 +22,7 @@ function Launch:Execute(player: Player, _payload: any)
 
 	local baseJump = hum.JumpPower
 	hum.JumpPower = baseJump * cfg.jumpPowerMult
-	hum.Jump = true   --// trigger the boosted jump immediately
+	hum.Jump = true   
 
 	task.delay(cfg.durationSec, function()
 		if hum and hum.Parent then

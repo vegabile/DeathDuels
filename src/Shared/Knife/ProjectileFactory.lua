@@ -6,27 +6,26 @@ local SharedConfigs = require(ReplicatedStorage.Knife.Configs)
 local Types = require(script.Parent.Types)
 
 local function knifeTrace(message: string)
-	print("[KNIFE] [ProjectileFactory] " .. message)
 end
 
---// How far (studs) to embed the knife tip into the surface on stick
+
 local EMBED_DEPTH = 0.5
---// End-over-end tumble rate (rad/s) matches the old AngularVelocity feel
+
 local SPIN_RATE = math.pi * 4
---// Overlap params for the secondary GetPartsInPart check
+
 local OVERLAP_PARAMS_FILTER_TYPE = Enum.RaycastFilterType.Exclude
 
 local ProjectileFactory = {}
 
---[[
-	Stick the projectile into a surface.
-	- travelDirection: the normalized direction the knife was moving at impact
-	- hitPosition: world-space hit point
-	- hitNormal: surface normal at the hit point (optional, used for embed offset)
-	
-	The knife is oriented so its front axis (negative Z in Roblox convention) points
-	along the travel direction, then nudged into the surface by EMBED_DEPTH studs.
-]]
+    
+                                     
+                                                                           
+                                     
+                                                                               
+ 
+                                                                                 
+                                                                               
+  
 function ProjectileFactory.stick(
 	projectile: BasePart,
 	travelDirection: Vector3?,
@@ -40,9 +39,9 @@ function ProjectileFactory.stick(
 	if av then av:Destroy() end
 
 	if hitPosition and travelDirection then
-		--// Orient the knife along its travel direction.
-		--// CFrame.new(pos, pos + dir) points -Z toward the target, so the
-		--// knife's front face aims along the flight path.
+		
+		
+		
 		local embedOffset = travelDirection * EMBED_DEPTH
 		local stickPos = hitPosition + embedOffset
 		projectile.CFrame = CFrame.new(stickPos, stickPos + travelDirection)
@@ -76,7 +75,7 @@ function ProjectileFactory.spawnProjectile(
 	clonedHandle.Transparency = config.transparency
 	clonedHandle.CanCollide = false
 
-	--// Orient the knife so its front (-Z) faces the throw direction from the start
+	
 	clonedHandle.CFrame = CFrame.new(config.spawnCFrame.Position, config.spawnCFrame.Position + direction)
 	clonedHandle.Parent = config.parent
 	knifeTrace(`[ProjectileFactory] spawned handle parent={config.parent:GetFullName()} pos={clonedHandle.Position}`)
@@ -90,7 +89,7 @@ function ProjectileFactory.spawnProjectile(
 	linearVelocity.Attachment0 = attachment
 	linearVelocity.Parent = clonedHandle
 
-	--// Build exclude list for raycasts and overlap checks
+	
 	local excludeList = {}
 	local excludeSet: { [Instance]: boolean } = {}
 
@@ -119,9 +118,9 @@ function ProjectileFactory.spawnProjectile(
 	overlapParams.FilterDescendantsInstances = excludeList
 
 	local function refreshDynamicExcludes()
-		--// The authoritative server projectile folder can appear after a client cosmetic
-		--// projectile is spawned on the first throw. Refreshing here keeps the ignore
-		--// list current instead of freezing the startup state forever.
+		
+		
+		
 		addExcluded(workspace:FindFirstChild("KnifeIgnoreFolder"))
 		raycastParams.FilterDescendantsInstances = excludeList
 		overlapParams.FilterDescendantsInstances = excludeList
@@ -167,12 +166,12 @@ function ProjectileFactory.spawnProjectile(
 				return false
 			end
 
-			--// Non-player model geometry - stick into it.
+			
 			stickAndCleanup(result.Position, result.Normal)
 			knifeTrace(`[ProjectileFactory] hit non-player model geometry={hitModel:GetFullName()}`)
 			return true
 		else
-			--// Non-model geometry - stick into it.
+			
 			stickAndCleanup(result.Position, result.Normal)
 			knifeTrace(`[ProjectileFactory] hit geometry={result.Instance:GetFullName()}`)
 			return true
@@ -190,7 +189,7 @@ function ProjectileFactory.spawnProjectile(
 		elapsedTime += dt
 		local currentPosition = clonedHandle.Position
 
-		--// Deterministic tumble: re-assert flight-direction orientation + end-over-end spin
+		
 		local baseCFrame = CFrame.new(currentPosition, currentPosition + direction)
 		clonedHandle.CFrame = baseCFrame * CFrame.Angles(elapsedTime * SPIN_RATE, 0, 0)
 		if tickCount == 1 or tickCount % 10 == 0 then
@@ -199,8 +198,8 @@ function ProjectileFactory.spawnProjectile(
 
 		refreshDynamicExcludes()
 
-		--// Primary detection: continuous raycast from spawn origin to current position.
-		--// Covers the entire flight path every frame - thin walls cannot be skipped.
+		
+		
 		local toCurrentPos = currentPosition - spawnOrigin
 		if toCurrentPos.Magnitude > 0 then
 			local result = workspace:Raycast(spawnOrigin, toCurrentPos, raycastParams)
@@ -213,8 +212,8 @@ function ProjectileFactory.spawnProjectile(
 			end
 		end
 
-		--// Secondary detection: overlap check for player character hits.
-		--// Characters have complex multi-part geometry that benefits from overlap checks.
+		
+		
 		local touching = workspace:GetPartsInPart(clonedHandle, overlapParams)
 		if #touching > 0 then
 			knifeTrace(`[ProjectileFactory] overlap count={#touching}`)

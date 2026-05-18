@@ -1,6 +1,6 @@
---// src/Client/SpectateController/init.lua
---// Stateful controller; owns SpectateClientState and camera side effects.
---// derive.lua is pure; this file handles everything that touches Roblox.
+
+
+
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -35,7 +35,7 @@ end
 
 local function restoreCameraToSelf()
 	if not camera then return end
-	camera.CameraSubject = getLocalHumanoid()  --// nil is valid
+	camera.CameraSubject = getLocalHumanoid()  
 end
 
 local function applyCamera()
@@ -123,7 +123,7 @@ local function cycle(delta: number)
 		return
 	end
 	if state.currentTargetUserId == nil then
-		--// No prior target: Next picks first, Previous picks last.
+		
 		state.currentTargetUserId = if delta > 0 then list[1] else list[#list]
 	else
 		local currentIdx = table.find(list, state.currentTargetUserId) or 1

@@ -1,5 +1,5 @@
---// src/Shared/Spectate/Types.lua
---// Data contract for client-derived spectate state.
+
+
 
 export type PlayerEntry = {
 	team: number,
@@ -13,7 +13,7 @@ export type SpectateClientState = {
 	selfEliminated: boolean,
 	players: { [number]: PlayerEntry },
 	canSpectate: boolean,
-	availableTargets: { number },        --// teammates first (asc userId), then opponents (asc userId)
+	availableTargets: { number },        
 	currentTargetUserId: number?,
 	isSpectating: boolean,
 }

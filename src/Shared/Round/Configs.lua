@@ -17,7 +17,7 @@ return {
 		Skipped = "Skipped",
 	},
 
-	WAITING_PERIOD = 10,
+	WAITING_PERIOD = 20,
 	ROUND_DURATION = 60,
 	ROUND_INTERMISSION_DURATION = 5,
 	GAME_OVER_DURATION = 8,
@@ -35,9 +35,11 @@ return {
 		"CharacterUsable",
 	},
 
+
 	DEFAULT_LOADOUT = {
-		knifeName = "Default",  --// placeholder — user will edit post-approval
+		knifeName = "Default",
 		gunName = "Default",
+		Power = "sprint", 
 	},
 
 	KICK_REASONS = {
@@ -54,6 +56,7 @@ return {
 	ROUNDS_TO_WIN = 5,
 	MAX_ROUNDS = 9,
 	COINS_PER_KILL = 10,
+	XP_PER_KILL = 100,
 
 	INITIAL_SPAWN_PART = "InitialSpawnBox",
 
@@ -68,9 +71,11 @@ return {
 		{ name = "3v3", playersPerTeam = 3 },
 		{ name = "4v4", playersPerTeam = 4 },
 		{ name = "5v5", playersPerTeam = 5 },
+		{ name = "6v6", playersPerTeam = 6 },
 	},
 
-	MAX_PLAYERS_PER_TEAM = 5,
+	MAX_PLAYERS_PER_TEAM = 6,
+	POST_ROUND_SPAWN_PART = "PostRoundSpawnPart",
 
 	LEGAL_TRANSITIONS = {
 		WaitingForPlayers = { "AssigningTeams", "Aborted" },

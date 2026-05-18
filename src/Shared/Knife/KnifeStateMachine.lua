@@ -1,7 +1,6 @@
 local Types = require(script.Parent.Types)
 
 local function debugLine(message: string)
-	print("[KNIFE] [StateMachine] " .. message)
 end
 
 local KnifeStateMachine = {}
@@ -19,7 +18,7 @@ function KnifeStateMachine.isLocked(state: Types.KnifeStateMachine): boolean
 	return state.isStabbing or state.isThrowing
 end
 
---// Returns false if the state machine rejects the transition
+
 function KnifeStateMachine.setActionActive(state: Types.KnifeStateMachine, actionName: string): boolean
 	debugLine(`setActionActive requested: {actionName} | stab={state.isStabbing} throw={state.isThrowing}`)
 	if state.isStabbing or state.isThrowing then

@@ -14,7 +14,7 @@ Everything else has safe defaults.
 Open `src/Shared/Round/Configs.lua` and replace `0` with your lobby's Roblox Place ID:
 
 ```lua
-LOBBY_PLACE_ID = 0,  -- ← change this
+LOBBY_PLACE_ID = 0,
 ```
 
 This is the place all players teleport to when a game ends (or aborts). If left as `0`, the game will warn and skip the teleport rather than looping on a broken call.
@@ -133,9 +133,9 @@ Each knife variant is a `Tool` instance inside `ReplicatedStorage.KnifeModels`. 
 ### API
 
 ```lua
-DataService.AddKnife(player, knifeName)          -- adds knife to collection
-DataService.EquipKnife(player, knifeId)           -- equips knife by id, unequips all others
-DataService.GetEquippedKnifeName(player) -> string? -- returns equipped knife's name, or nil
+DataService.AddKnife(player, knifeName)
+DataService.EquipKnife(player, knifeId)
+DataService.GetEquippedKnifeName(player) -> string?
 ```
 
 ### Resolution at Round Start

@@ -7,7 +7,6 @@ local ProjectileFactory = require(ReplicatedStorage.Knife.ProjectileFactory)
 
 local localPlayer = Players.LocalPlayer
 local function knifeTrace(message: string)
-	print("[KNIFE] " .. message)
 end
 
 local function setupCharacter(character)

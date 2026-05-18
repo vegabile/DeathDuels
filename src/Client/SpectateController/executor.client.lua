@@ -1,6 +1,6 @@
---// src/Client/SpectateController/executor.client.lua
---// Bootstrap: inject Camera + LocalPlayer, subscribe to RoundUpdate,
---// bind input keys. Runs automatically as a LocalScript via Rojo.
+
+
+
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")

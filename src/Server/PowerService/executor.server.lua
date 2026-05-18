@@ -1,6 +1,5 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local ServerScriptService = game:GetService("ServerScriptService")
 
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 local PayloadValidator = require(ReplicatedStorage.Power.PayloadValidator)
@@ -8,7 +7,6 @@ local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 local SharedTypes = require(ReplicatedStorage.Power.Types)
 
 local PowerService = require(script.Parent)
-local TeleportMetadataService = require(ServerScriptService.RoundService.TeleportMetadataService)
 
 NetworkRouter:CreateRemoteEvent("PowerBroadcast")
 
@@ -26,15 +24,14 @@ local function fireResponse(player: Player, sequenceId: number, result: PowerRes
 end
 
 local function setupPlayer(player: Player)
-	--// Guard against the PlayerAdded+startup-for-loop race: if an instance
-	--// already exists for this player, setup ran once — don't duplicate.
+	
+	
 	if PowerService.Get(player) ~= nil then return end
 
 	local name = remoteName(player)
 	NetworkRouter:CreateRemoteEvent(name)
 
-	local loadout = TeleportMetadataService.GetLoadout(player.UserId)
-	PowerService.new(player, loadout)
+	PowerService.new(player)
 
 	NetworkRouter:Listen(name, function(firingPlayer, envelope)
 		if firingPlayer ~= player then

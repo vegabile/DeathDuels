@@ -69,7 +69,7 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
 	overlapParams.FilterDescendantsInstances = { character }
 
-	--// Primary detection: Heartbeat overlap query for the full window.
+	
 	local heartbeatConn: RBXScriptConnection? = nil
 
 	local function tearDown()
@@ -127,10 +127,10 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 			end
 		end
 	end)
-	--// Keep compatibility with KnifeService.OnPlayerDied cleanup.
+	
 	playerState.currentTickConnection = heartbeatConn
 
-	--// Stored on playerState so OnPlayerDied can disconnect it if the stab window is active.
+	
 	playerState.stabTouchedConn = hitbox.Touched:Connect(function(part)
 		local hitCharacter = part:FindFirstAncestorOfClass("Model")
 		local hitPlayer = hitCharacter and Players:GetPlayerFromCharacter(hitCharacter)

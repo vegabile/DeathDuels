@@ -1,5 +1,5 @@
 return {
-	DEBOUNCE = 0.05,   --// seconds; per-player per-power spam guard
+	DEBOUNCE = 0.05,   
 
 	POWERS = {
 		Sprint          = { cooldown = 10, durationSec = 2,   speedMult = 1.5 },

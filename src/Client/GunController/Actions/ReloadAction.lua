@@ -14,8 +14,8 @@ do
 	ReloadAction.animationId = (profile and profile.id) or ""
 end
 
---// Cosmetic-only. GunController.performAction plays the animation before calling this;
---// this function is a no-op beyond any future sfx hook.
+
+
 function ReloadAction.clientExecute(_state, _directionVector)
 end
 

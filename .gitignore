@@ -1,20 +1,15 @@
-# Argon
 /sourcemap.json
 
-# Wally
 /Packages
 /ServerPackages
 /DevPackages
 
-# Artifacts
 /*.lock
 /*.rbxl
 /*.rbxlx
 /*.rbxm
 /*.rbxmx
 
-# Worktrees
 /.worktrees
 
-# Misc
 .DS_Store

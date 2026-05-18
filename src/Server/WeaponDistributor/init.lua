@@ -45,7 +45,7 @@ local function ensureKnifeHitbox(tool: Tool)
 	local handle = tool:FindFirstChild("Handle") :: BasePart
 	local bbCFrame, bbSize = tool:GetBoundingBox()
 
-	--// Fall back to Handle dimensions if the bounding box is degenerate
+	
 	if bbSize.Magnitude < 0.01 then
 		warn("[WeaponDistributor] Knife bounding box is near-zero — falling back to Handle size")
 		bbCFrame = handle.CFrame
@@ -61,7 +61,7 @@ local function ensureKnifeHitbox(tool: Tool)
 	hitbox.Massless = true
 	hitbox.CastShadow = false
 
-	--// Parent before weld so Part0/Part1 are in the same tree
+	
 	hitbox.Parent = tool
 
 	local weld = Instance.new("WeldConstraint")
@@ -75,14 +75,14 @@ local function ensureGunShootPoint(tool: Tool)
 
 	if handle:FindFirstChild("ShootPoint") then return end
 
-	--// Common Studio name for the same attachment — just rename it
+	
 	local existing = handle:FindFirstChild("ShootAttachment")
 	if existing then
 		existing.Name = "ShootPoint"
 		return
 	end
 
-	--// Neither present — create one at the forward face of the Handle
+	
 	local shootPoint = Instance.new("Attachment")
 	shootPoint.Name = "ShootPoint"
 	shootPoint.Position = Vector3.new(0, 0, handle.Size.Z / 2)
@@ -152,7 +152,7 @@ function WeaponDistributor.distributeToPlayer(player: Player, knifeName: string?
 	local knifeTemplate = resolveTemplate(knifeName, knifeTemplates, knifeTemplatesLowercase, defaultKnifeTemplate)
 	local gunTemplate = resolveTemplate(gunName, gunTemplates, gunTemplatesLowercase, defaultGunTemplate)
 
-	--// Idempotency: skip if the tool is already in the backpack or equipped on the character.
+	
 	if not backpack:FindFirstChild(knifeTemplate.Name) and not character:FindFirstChild(knifeTemplate.Name) then
 		local knife = knifeTemplate:Clone()
 		knife:SetAttribute("IsKnife", true)
@@ -166,7 +166,7 @@ function WeaponDistributor.distributeToPlayer(player: Player, knifeName: string?
 	end
 end
 
---// Test-only: resets module state so tests can run in isolation
+
 function WeaponDistributor._reset()
 	knifeTemplates = {}
 	knifeTemplatesLowercase = {}

@@ -1,5 +1,5 @@
---// Validates weapon templates at module load. Calls WeaponDistributor.init once.
---// No listeners. No _roundActive flag. RoundSystem calls distributeToPlayer directly.
+
+
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local WeaponDistributor = require(script.Parent)
@@ -66,5 +66,3 @@ local initOk = WeaponDistributor.init(knives, guns)
 if not initOk then
 	error("[WeaponDistributor] init failed")
 end
-
-print(`[WeaponDistributor] initialized with {#knives} knives, {#guns} guns`)

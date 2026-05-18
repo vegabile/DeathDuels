@@ -53,4 +53,29 @@ function InputRouter.unbindWeapon(weaponType: string)
 	end
 end
 
+function InputRouter.bindPower(callback: () -> ())
+	local binding = Configs.PowerBindings.Activate
+	local inputs = {}
+	if binding.keyboard then table.insert(inputs, binding.keyboard) end
+	if binding.gamepad then table.insert(inputs, binding.gamepad) end
+
+	ContextActionService:UnbindAction(binding.actionName)
+	ContextActionService:BindAction(
+		binding.actionName,
+		function(_, inputState)
+			if inputState ~= Enum.UserInputState.Begin then return end
+			callback()
+		end,
+		binding.touchButton or false,
+		table.unpack(inputs)
+	)
+
+	debugPrint(DEBUG, `[InputRouter] Bound {binding.actionName}`)
+end
+
+function InputRouter.unbindPower()
+	ContextActionService:UnbindAction(Configs.PowerBindings.Activate.actionName)
+	debugPrint(DEBUG, `[InputRouter] Unbound {Configs.PowerBindings.Activate.actionName}`)
+end
+
 return InputRouter

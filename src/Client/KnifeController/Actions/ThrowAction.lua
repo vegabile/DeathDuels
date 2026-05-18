@@ -29,8 +29,8 @@ local function getOrCreateClientFolder(): Folder
 	return folder
 end
 
---// clientExecute is invoked from the release callback in KnifeController, NOT at click time.
---// directionVector is the rest-origin-computed direction; spawnCFrame is the animated visual CFrame.
+
+
 function ThrowAction.clientExecute(_state, directionVector: Vector3?, spawnCFrame: CFrame?)
 	if not directionVector or not spawnCFrame then return end
 

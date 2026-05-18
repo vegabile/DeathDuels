@@ -43,7 +43,7 @@ function WinConditionEvaluator.isGameOver(roundResults: { any }, currentRound: n
 	end
 
 	if currentRound >= Configs.MAX_ROUNDS then
-		--// Tiebreaker: team with more round wins takes it, nil if truly tied
+		
 		if teamOneWins > teamTwoWins then
 			return true, 1
 		elseif teamTwoWins > teamOneWins then

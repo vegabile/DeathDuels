@@ -8,6 +8,7 @@ local Reasons = require(ReplicatedStorage.Power.PowerFailReason)
 local TeleportMetadataService = require(ServerScriptService.RoundService.TeleportMetadataService)
 
 local Configs = require(script.Parent.Parent.Configs)
+local RoundScope = require(script.Parent.Parent.RoundScope)
 local cfg = Configs.POWERS.Blinding
 
 local Blinding = {}
@@ -45,8 +46,11 @@ local function pickTarget(player: Player, originCFrame: CFrame): (Player?, Vecto
 	end
 
 	if bestPlayer then
-		local tgtHrp = bestPlayer.Character:FindFirstChild("HumanoidRootPart")
-		return bestPlayer, (tgtHrp.Position - originPos).Unit
+		local targetChar = bestPlayer.Character
+		local tgtHrp = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+		if tgtHrp and tgtHrp:IsA("BasePart") then
+			return bestPlayer, (tgtHrp.Position - originPos).Unit
+		end
 	end
 	return nil, lookVec
 end
@@ -70,6 +74,7 @@ function Blinding:Execute(player: Player, _payload: any)
 	projectile.Color = Color3.new(1, 1, 0.8)
 	projectile.Position = hrp.Position + direction * 2
 	projectile.Parent = workspace
+	RoundScope.Register(projectile)
 	projectile.AssemblyLinearVelocity = direction * cfg.projectileSpeed
 
 	local hit = false
