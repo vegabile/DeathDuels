@@ -2,7 +2,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local Configs = require(ReplicatedStorage.Round.Configs)
-local ServerEventBus = require(ServerScriptService.ServerEventBus)
+local GlobalConfigs = require(ReplicatedStorage.GlobalConfigs)
+local SharedPowerConfigs = require(ReplicatedStorage.Power.Configs)
+local PowerService = require(ServerScriptService.PowerService)
 local WeaponDistributor = require(ServerScriptService.WeaponDistributor)
 
 local PlayerState = require(script.Parent.PlayerState)
@@ -14,13 +16,18 @@ local PlayerReadiness = require(script.Parent.PlayerReadiness)
 
 local RoundOrchestrator = {}
 
+local function setPowerRoundEligible(player: Player, eligible: boolean)
+	player:SetAttribute(SharedPowerConfigs.ROUND_ELIGIBLE_ATTRIBUTE, eligible)
+	player:SetAttribute(Configs.COMBAT_ELIGIBLE_ATTRIBUTE, eligible)
+end
+
 local function collectSpawnParts(mapModel)
 	local red = {}
 	local blue = {}
 	for _, desc in mapModel:GetDescendants() do
-		if desc.Name == Configs.SPAWN_PARTS.Red then
+		if desc.Name == Configs.SPAWN_PARTS.Red and desc:IsA("BasePart") then
 			table.insert(red, desc)
-		elseif desc.Name == Configs.SPAWN_PARTS.Blue then
+		elseif desc.Name == Configs.SPAWN_PARTS.Blue and desc:IsA("BasePart") then
 			table.insert(blue, desc)
 		end
 	end
@@ -29,7 +36,7 @@ end
 
 local function getSpawnAssignment(system)
 	local red, blue = collectSpawnParts(system._mapModel)
-	--// Alternate each round: odd → team1=red, even → team1=blue
+	
 	if system._roundNumber % 2 == 1 then
 		return { [1] = red, [2] = blue }
 	else
@@ -37,11 +44,11 @@ local function getSpawnAssignment(system)
 	end
 end
 
---// Sole driver of round-scoped player:LoadCharacter() calls.
---// Captures a load token synchronously, kicks off LoadCharacter, waits up to
---// `timeout` for CharacterAdded, then waits for HRP+Humanoid bounded by
---// CHAR_FACT_WAIT_TIMEOUT, then writes character facts via the token gate.
---// Returns true on success, false on any timeout/failure.
+
+
+
+
+
 local function loadCharacterAndRecord(player: Player, timeout: number): boolean
 	local token = PlayerReadiness.beginCharacterLoad(player)
 
@@ -80,6 +87,9 @@ local function loadCharacterAndRecord(player: Player, timeout: number): boolean
 	if not hrp or not humanoid then
 		return false
 	end
+	if hrp:IsA("BasePart") and character.PrimaryPart == nil then
+		character.PrimaryPart = hrp
+	end
 
 	PlayerReadiness.recordCharacterFact(player, token, "CharacterLoaded")
 	PlayerReadiness.recordCharacterFact(player, token, "CharacterUsable")
@@ -113,13 +123,18 @@ local function pickInitialSpawnCFrame(): CFrame
 	return CFrame.new(0, 100, 0)
 end
 
---// Idempotent. Synchronously applies all physical side effects of being Skipped:
---// clears backpack, teleports to initial spawn, anchors HRP, zeros walk speed,
---// adds a ForceField. Calls _broadcastUpdate so clients see the status flip
---// atomically with the physical change.
+
+
+
+
 local function applySkipped(system, player: Player, playerState)
-	if playerState.status == Configs.PLAYER_STATUSES.Skipped then return end
+	if playerState.status == Configs.PLAYER_STATUSES.Skipped then
+		setPowerRoundEligible(player, false)
+		return
+	end
 	playerState.status = Configs.PLAYER_STATUSES.Skipped
+	playerState:SetInGame(false)
+	setPowerRoundEligible(player, false)
 
 	clearBackpack(player)
 
@@ -146,32 +161,33 @@ local function applySkipped(system, player: Player, playerState)
 	system:_broadcastUpdate()
 end
 
---// Idempotent gate per (player, round). The first call positions the player
---// at the spawn part, restores walk speed, removes any ForceField, and runs
---// idempotent weapon distribution. Subsequent calls in the same round are
---// no-ops via the positionedThisRound flag.
-local function exitSkippedOrPosition(system, player: Player, playerState, spawnPart: BasePart, loadout)
-	if playerState.positionedThisRound then return end
-	playerState.positionedThisRound = true
 
-	playerState.status = Configs.PLAYER_STATUSES.Alive
 
+
+
+local function exitSkippedOrPosition(system, player: Player, playerState, spawnPart: BasePart, loadout): boolean
+	if playerState.positionedThisRound then return true end
 	local character = (player :: any).Character
 	if not character then
+		setPowerRoundEligible(player, false)
 		warn(`[Round] exitSkippedOrPosition: {player.Name} has no character; cannot position`)
-		return
+		return false
 	end
 
 	local hrp = character:FindFirstChild("HumanoidRootPart")
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if hrp and hrp:IsA("BasePart") then
-		print(`[Round] exitSkippedOrPosition: teleporting {player.Name} to spawn part {spawnPart.Name} at {spawnPart.CFrame}`)
-		hrp.Anchored = false
-		hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
+	if not (hrp and hrp:IsA("BasePart") and humanoid) then
+		setPowerRoundEligible(player, false)
+		warn(`[Round] exitSkippedOrPosition: {player.Name} missing HRP or Humanoid`)
+		return false
 	end
-	if humanoid then
-		humanoid.WalkSpeed = Configs.DEFAULT_WALK_SPEED
+
+	hrp.Anchored = false
+	hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
+	if character.PrimaryPart == nil then
+		character.PrimaryPart = hrp
 	end
+	humanoid.WalkSpeed = Configs.DEFAULT_WALK_SPEED
 
 	for _, child in character:GetChildren() do
 		if child:IsA("ForceField") then child:Destroy() end
@@ -180,13 +196,16 @@ local function exitSkippedOrPosition(system, player: Player, playerState, spawnP
 	local knifeName = loadout and loadout.knifeName
 	local gunName = loadout and loadout.gunName
 	WeaponDistributor.distributeToPlayer(player, knifeName, gunName)
+	playerState.positionedThisRound = true
+	playerState.status = Configs.PLAYER_STATUSES.Alive
+	playerState:SetInGame(true)
+	setPowerRoundEligible(player, true)
+	return true
 end
 
 local function enterWaitingForPlayers(system)
-	print(`[Round] State: WaitingForPlayers — fallback in {Configs.WAITING_PERIOD}s`)
 	system._waitTask = task.delay(Configs.WAITING_PERIOD, function()
 		if system._stateMachine:GetState() == Configs.GAME_STATES.WaitingForPlayers then
-			print("[Round] Wait period elapsed — advancing to AssigningTeams")
 			system:_transition(Configs.GAME_STATES.AssigningTeams)
 		end
 	end)
@@ -199,8 +218,6 @@ local function enterAssigningTeams(system)
 	end
 
 	local mapName = TeleportMetadataService.GetMapName()
-	print(`[Round] State: AssigningTeams — map: "{mapName}"`)
-
 	local mapsFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Maps")
 	local mapTemplate = mapsFolder and mapsFolder:FindFirstChild(mapName)
 	if not mapTemplate then
@@ -222,29 +239,30 @@ local function enterAssigningTeams(system)
 			warn(`[Round] {player.Name} had no team — dynamically assigned to team {team}`)
 			TeleportMetadataService.SetTeam(player.UserId, team)
 		end
-		system._playerStates[player] = PlayerState.new(player, team)
+		local playerState = PlayerState.new(player, team)
+		system._playerStates[player] = playerState
+		system._playerStatesByUserId[player.UserId] = playerState
+		system._playersByUserId[player.UserId] = player
 		table.insert(system._teamPlayers[team], player)
 	end
-
-	print(`[Round] Team 1: {#system._teamPlayers[1]} player(s) | Team 2: {#system._teamPlayers[2]} player(s)`)
-
 	system._teamStates[1] = TeamState.new(1, system._teamPlayers[1], system._playerStates)
 	system._teamStates[2] = TeamState.new(2, system._teamPlayers[2], system._playerStates)
 
-	--// Freeze the authoritative roster for this match. Downstream reads consult
-	--// this list, not _pendingPlayers (cleared below) and not _teamPlayers
-	--// directly (still used for per-team operations, but composition matches roster).
+	
+	
+	
 	local roster: { Player } = {}
 	for _, p in system._teamPlayers[1] do table.insert(roster, p) end
 	for _, p in system._teamPlayers[2] do table.insert(roster, p) end
 	system._roundRoster = roster
 
-	--// Synchronous fact write — the loadout is in-memory by this point.
+	
 	for _, p in roster do
+		PowerService.AssignLoadout(p, if GlobalConfigs.TEST_MODE then Configs.DEFAULT_LOADOUT else TeleportMetadataService.GetLoadout(p.UserId))
 		PlayerReadiness.recordFact(p, "LoadoutResolved")
 	end
 
-	--// _pendingPlayers is only meaningful during WaitingForPlayers.
+	
 	system._pendingPlayers = {}
 
 	system:_transition(Configs.GAME_STATES.PreparingPlayers)
@@ -258,20 +276,19 @@ local function allRosterReady(roster: { Player }): boolean
 end
 
 local function enterPreparingPlayers(system)
-	print(`[Round] State: PreparingPlayers — grace {Configs.READINESS_GRACE_FIRST_ROUND}s for {#system._roundRoster} player(s)`)
 	local deadline = os.clock() + Configs.READINESS_GRACE_FIRST_ROUND
 
-	--// Spawn per-player loads. Each task is bounded internally by
-	--// loadCharacterAndRecord's CHAR_FACT_WAIT_TIMEOUT. Tasks do NOT call
-	--// applySkipped on their own failure — the post-wait cleanup loop below
-	--// is the single site for force-skip.
+	
+	
+	
+	
 	for _, player in system._roundRoster do
 		task.spawn(function()
 			loadCharacterAndRecord(player, Configs.READINESS_GRACE_FIRST_ROUND)
 		end)
 	end
 
-	--// Global event-driven wait. Yields on ChangedSignal OR deadline.
+	
 	while true do
 		if allRosterReady(system._roundRoster) then break end
 		local timeLeft = deadline - os.clock()
@@ -280,8 +297,8 @@ local function enterPreparingPlayers(system)
 		if system._stateMachine:GetState() ~= Configs.GAME_STATES.PreparingPlayers then return end
 	end
 
-	--// Deadline reached or all ready. Force-skip any incomplete player NOW,
-	--// synchronously applying physical side effects.
+	
+	
 	for _, player in system._roundRoster do
 		if not PlayerReadiness.isComplete(player) then
 			warn(`[Round] {player.Name} incomplete after PreparingPlayers grace: {table.concat(PlayerReadiness.missingFacts(player), ", ")}`)
@@ -293,18 +310,17 @@ local function enterPreparingPlayers(system)
 end
 
 local function enterRoundActive(system)
-	system._roundNumber += 1
-	print(`[Round] State: RoundActive — Round {system._roundNumber} | {Configs.ROUND_DURATION}s`)
+	local roundToken = system._roundToken
+	system._positioningPlayers = true
 
-	system._positioningPlayers = true   --// gates _checkWinCondition during positioning
-
-	--// Round timer starts NOW, parallel to positioning. Late-teleport is
-	--// genuinely late — the round is already live.
+	
+	
 	system._roundTimerTask = task.delay(Configs.ROUND_DURATION, function()
 		system._roundTimerTask = nil
 		if system._stateMachine:GetState() ~= Configs.GAME_STATES.RoundActive then return end
+		if system._roundToken ~= roundToken then return end
 
-		--// Time expired — determine winner by alive count
+		
 		local t1 = system._teamStates[1]:Recalculate()
 		local t2 = system._teamStates[2]:Recalculate()
 
@@ -314,9 +330,6 @@ local function enterRoundActive(system)
 		elseif t2.alivePlayers > t1.alivePlayers then
 			winningTeam = 2
 		end
-
-		print(`[Round] Time expired — winner: {winningTeam and "Team "..winningTeam or "Draw"}`)
-
 		table.insert(system._roundResults, { winningTeam = winningTeam, stats = {} })
 		system:_fireEvent("RoundOver", winningTeam, system._roundNumber)
 
@@ -330,15 +343,21 @@ local function enterRoundActive(system)
 
 	local remaining = 0
 	local finalized = false
+	local function isCurrentRound()
+		return system._roundToken == roundToken
+			and system._stateMachine:GetState() == Configs.GAME_STATES.RoundActive
+	end
+
 	local function finalize()
 		if finalized then return end
+		if not isCurrentRound() then return end
 		finalized = true
 		system._positioningPlayers = false
 		system:_broadcastUpdate()
 		system:_checkWinCondition()
 	end
 
-	--// Pre-compute spawn groups so per-player assignments rotate deterministically.
+	
 	local spawnGroups = getSpawnAssignment(system)
 
 	for teamNum, players in system._teamPlayers do
@@ -352,32 +371,37 @@ local function enterRoundActive(system)
 			if not playerState then continue end
 			if playerState.status == Configs.PLAYER_STATUSES.Disconnected then continue end
 			if playerState.status == Configs.PLAYER_STATUSES.Skipped then
-				--// Round-1 force-skipped from PreparingPlayers. No late-teleport
-				--// within the same round — they wait for the next intermission exit.
+				
+				
 				continue
 			end
+			playerState.status = Configs.PLAYER_STATUSES.Positioning
+			playerState:SetInGame(false)
+			playerState.positionedThisRound = false
 
 			local spawnPart = spawns[((i - 1) % #spawns) + 1]
 			remaining += 1
 
 			task.spawn(function()
 				local ok, err = pcall(function()
-					--// Fast path (round 1): facts already set by PreparingPlayers.
-					--// Slow path (rounds 2+): intermission cleared char facts; re-load
-					--//                        with per-player LATE_TELEPORT_GRACE.
+					if not isCurrentRound() or finalized then return end
+					
+					
+					
 					if not PlayerReadiness.isComplete(player) then
-						print(player.Name .. " is not ready, attempting late teleport with grace...")
 						local ready = loadCharacterAndRecord(player, Configs.LATE_TELEPORT_GRACE)
+						if not isCurrentRound() or finalized then return end
 						if not ready then
 							applySkipped(system, player, playerState)
 							return
 						end
 					end
-					print(`[Round] Positioning {player.Name} at spawn for team {teamNum} (late teleport: {not PlayerReadiness.isComplete(player)})`)
-					local loadout = TeleportMetadataService.GetLoadout(player.UserId)
-					exitSkippedOrPosition(system, player, playerState, spawnPart, loadout)
+					local loadout = if GlobalConfigs.TEST_MODE then Configs.DEFAULT_LOADOUT else TeleportMetadataService.GetLoadout(player.UserId)
+					if not exitSkippedOrPosition(system, player, playerState, spawnPart, loadout) then
+						applySkipped(system, player, playerState)
+					end
 				end)
-				if not ok then
+				if not ok and isCurrentRound() and not finalized then
 					warn(`[Round] Positioning task errored for {player.Name}: {err}`)
 					applySkipped(system, player, playerState)
 				end
@@ -387,21 +411,22 @@ local function enterRoundActive(system)
 		end
 	end
 
-	if remaining == 0 then finalize() end   --// edge case: nobody eligible
+	if remaining == 0 then finalize() end   
 
-	--// Safety backstop — NOT a gate. Parallel to positioning and the round timer.
+	
 	task.delay(Configs.POSITIONING_OUTER_TIMEOUT, function()
 		if finalized then return end
+		if not isCurrentRound() then return end
 		warn("[Round] Positioning outer safety timer fired — force-finalizing")
 		for _, player in system._roundRoster do
 			local state = system._playerStates[player]
 			if not state then continue end
 			local s = state.status
-			if s ~= Configs.PLAYER_STATUSES.Alive
+			if not state.positionedThisRound
 				and s ~= Configs.PLAYER_STATUSES.Skipped
 				and s ~= Configs.PLAYER_STATUSES.Disconnected
 			then
-				warn(`[Round] {player.Name} did not reach terminal state — forcing Skipped`)
+				warn(`[Round] {player.Name} was not positioned before timeout — forcing Skipped`)
 				applySkipped(system, player, state)
 			end
 		end
@@ -417,9 +442,8 @@ local function enterRoundIntermission(system)
 
 	local lastResult = system._roundResults[#system._roundResults]
 	local winner = lastResult and lastResult.winningTeam
-	print(`[Round] State: RoundIntermission — Round {system._roundNumber} winner: {winner and "Team "..winner or "Draw"} | {Configs.ROUND_INTERMISSION_DURATION}s`)
-
 	for _, playerState in system._playerStates do
+		setPowerRoundEligible(playerState.player, false)
 		playerState:Lock()
 	end
 
@@ -430,15 +454,16 @@ local function enterRoundIntermission(system)
 
 		for _, playerState in system._playerStates do
 			if playerState.status == Configs.PLAYER_STATUSES.Disconnected then
-				--// Leave disconnected entries alone — they remain Disconnected for the rest of the match.
+				
 				continue
 			end
+			setPowerRoundEligible(playerState.player, false)
 			playerState:Unlock()
-			playerState:Reset()   --// sets status to Alive, clears positionedThisRound (Skipped → Alive too)
+			playerState:Reset()   
 		end
 
-		--// Clear character facts for every roster player. This forces the next
-		--// RoundActive's per-player tasks to take the slow path and reload.
+		
+		
 		for _, player in system._roundRoster do
 			PlayerReadiness.clearFact(player, "CharacterLoaded")
 			PlayerReadiness.clearFact(player, "CharacterUsable")
@@ -456,8 +481,6 @@ end
 local function enterGameOver(system)
 	local lastResult = system._roundResults[#system._roundResults]
 	local winner = lastResult and lastResult.winningTeam
-	print(`[Round] State: GameOver — Overall winner: {winner and "Team "..winner or "No winner"} | Teleporting in {Configs.GAME_OVER_DURATION}s`)
-
 	system:_fireEvent("GameOver", winner)
 
 	system._waitTask = task.delay(Configs.GAME_OVER_DURATION, function()
@@ -483,11 +506,8 @@ local function enterTeleportingOut(system)
 			table.insert(players, player)
 		end
 	end
-
-	print(`[Round] State: TeleportingOut — {#players} player(s)`)
-
 	local _, overallWinner = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
-	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, overallWinner, system._disconnectedStats)
+	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, overallWinner, system._disconnectedStats, system:GetMatchId())
 	local ok, err = TeleportUtility.teleportPlayersWithRetry(players, Configs.LOBBY_PLACE_ID, payload)
 	if not ok then
 		warn(`[Round] Teleport failed after retries: {err}`)
@@ -495,7 +515,6 @@ local function enterTeleportingOut(system)
 end
 
 local function enterAborted(system)
-	print("[Round] State: Aborted — transitioning to TeleportingOut")
 	system:_transition(Configs.GAME_STATES.TeleportingOut)
 end
 
@@ -511,8 +530,6 @@ local handlers = {
 }
 
 function RoundOrchestrator.enter(state: string, system)
-	ServerEventBus:Fire("RoundStateChanged", state)
-
 	local handler = handlers[state]
 	if not handler then
 		warn(`[Round] No handler for state: {state}`)
@@ -527,8 +544,10 @@ function RoundOrchestrator.enter(state: string, system)
 	end
 end
 
---// Test-only hook. Not called by any production code path. Integration tests
---// use this to exercise applySkipped against a live player in edit mode.
+
+
+RoundOrchestrator.ApplySkipped = applySkipped
 RoundOrchestrator._testApplySkipped = applySkipped
+RoundOrchestrator.setPowerRoundEligible = setPowerRoundEligible
 
 return RoundOrchestrator
