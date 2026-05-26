@@ -1,5 +1,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MapValidator = require(ReplicatedStorage.Map.MapValidator)
+local GlobalConfigs = require(ReplicatedStorage.GlobalConfigs)
 local Configs = require(ReplicatedStorage.Round.Configs)
 
 local TeleportDataValidator = {}
@@ -17,6 +18,17 @@ local function sanitizeString(value: any, fallback: string): string
 		return value
 	end
 	return fallback
+end
+
+local function defaultPowerName(): string?
+	return if GlobalConfigs.TEST_MODE then Configs.DEFAULT_LOADOUT.Power else nil
+end
+
+local function sanitizePowerName(value: any): string?
+	if type(value) == "string" and value ~= "" then
+		return value
+	end
+	return defaultPowerName()
 end
 
 local function validatePlayerList(list: any, fieldName: string, seenUserIds: { [number]: boolean }): (boolean, string?)
@@ -51,8 +63,8 @@ local function cloneDefaultLoadout()
 	return {
 		knifeName = Configs.DEFAULT_LOADOUT.knifeName,
 		gunName = Configs.DEFAULT_LOADOUT.gunName,
-		Power = Configs.DEFAULT_LOADOUT.Power,
-		powerName = Configs.DEFAULT_LOADOUT.Power,
+		Power = defaultPowerName(),
+		powerName = defaultPowerName(),
 	}
 end
 
@@ -137,7 +149,7 @@ local function fillLoadouts(sanitized)
 				warn(`[TeleportDataValidator] loadouts[{tostring(k)}] is {typeof(v)} — defaulting`)
 				copy[k] = cloneDefaultLoadout()
 			else
-				local powerName = sanitizeString(v.Power or v.powerName, Configs.DEFAULT_LOADOUT.Power)
+				local powerName = sanitizePowerName(v.Power or v.powerName)
 				copy[k] = {
 					knifeName = sanitizeString(v.knifeName, Configs.DEFAULT_LOADOUT.knifeName),
 					gunName = sanitizeString(v.gunName, Configs.DEFAULT_LOADOUT.gunName),
@@ -163,7 +175,7 @@ local function fillLoadouts(sanitized)
 			loadout.gunName = Configs.DEFAULT_LOADOUT.gunName
 		end
 		if loadout.Power == nil or loadout.Power == "" then
-			loadout.Power = Configs.DEFAULT_LOADOUT.Power
+			loadout.Power = defaultPowerName()
 		end
 		if loadout.powerName == nil or loadout.powerName == "" then
 			loadout.powerName = loadout.Power

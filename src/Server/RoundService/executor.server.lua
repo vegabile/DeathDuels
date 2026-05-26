@@ -69,6 +69,7 @@ local function setupPlayer(player: Player)
 			ReconnectService.ReturnPlayerToLobby(player, registerReason)
 			return
 		end
+		ReconnectService.ConsumeReconnectTicket(player, ticketOrReason)
 		return
 	end
 
