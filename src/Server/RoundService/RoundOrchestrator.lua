@@ -440,8 +440,6 @@ local function enterRoundIntermission(system)
 		system._roundTimerTask = nil
 	end
 
-	local lastResult = system._roundResults[#system._roundResults]
-	local winner = lastResult and lastResult.winningTeam
 	for _, playerState in system._playerStates do
 		setPowerRoundEligible(playerState.player, false)
 		playerState:Lock()
@@ -547,7 +545,5 @@ end
 
 
 RoundOrchestrator.ApplySkipped = applySkipped
-RoundOrchestrator._testApplySkipped = applySkipped
-RoundOrchestrator.setPowerRoundEligible = setPowerRoundEligible
 
 return RoundOrchestrator
