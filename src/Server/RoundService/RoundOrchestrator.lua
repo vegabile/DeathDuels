@@ -21,6 +21,13 @@ local function setPowerRoundEligible(player: Player, eligible: boolean)
 	player:SetAttribute(Configs.COMBAT_ELIGIBLE_ATTRIBUTE, eligible)
 end
 
+local function resetQuestRoundAttributes(player: Player)
+	player:SetAttribute(Configs.QUEST_ROUND_PARTICIPATED_ATTRIBUTE, false)
+	player:SetAttribute(Configs.QUEST_USED_GUN_ATTRIBUTE, false)
+	player:SetAttribute(Configs.QUEST_USED_KNIFE_ATTRIBUTE, false)
+	player:SetAttribute(Configs.QUEST_USED_POWER_ATTRIBUTE, false)
+end
+
 local function collectSpawnParts(mapModel)
 	local red = {}
 	local blue = {}
@@ -182,12 +189,12 @@ local function exitSkippedOrPosition(system, player: Player, playerState, spawnP
 		return false
 	end
 
-	hrp.Anchored = false
 	hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
+	hrp.Anchored = true
 	if character.PrimaryPart == nil then
 		character.PrimaryPart = hrp
 	end
-	humanoid.WalkSpeed = Configs.DEFAULT_WALK_SPEED
+	humanoid.WalkSpeed = 0
 
 	for _, child in character:GetChildren() do
 		if child:IsA("ForceField") then child:Destroy() end
@@ -197,16 +204,14 @@ local function exitSkippedOrPosition(system, player: Player, playerState, spawnP
 	local gunName = loadout and loadout.gunName
 	WeaponDistributor.distributeToPlayer(player, knifeName, gunName)
 	playerState.positionedThisRound = true
-	playerState.status = Configs.PLAYER_STATUSES.Alive
-	playerState:SetInGame(true)
-	setPowerRoundEligible(player, true)
+	setPowerRoundEligible(player, false)
 	return true
 end
 
 local function enterWaitingForPlayers(system)
 	system._waitTask = task.delay(Configs.WAITING_PERIOD, function()
 		if system._stateMachine:GetState() == Configs.GAME_STATES.WaitingForPlayers then
-			system:_transition(Configs.GAME_STATES.AssigningTeams)
+			system:_transition(if system:CanStartMatch() then Configs.GAME_STATES.AssigningTeams else Configs.GAME_STATES.Aborted)
 		end
 	end)
 end
@@ -313,34 +318,6 @@ local function enterRoundActive(system)
 	local roundToken = system._roundToken
 	system._positioningPlayers = true
 
-	
-	
-	system._roundTimerTask = task.delay(Configs.ROUND_DURATION, function()
-		system._roundTimerTask = nil
-		if system._stateMachine:GetState() ~= Configs.GAME_STATES.RoundActive then return end
-		if system._roundToken ~= roundToken then return end
-
-		
-		local t1 = system._teamStates[1]:Recalculate()
-		local t2 = system._teamStates[2]:Recalculate()
-
-		local winningTeam = nil
-		if t1.alivePlayers > t2.alivePlayers then
-			winningTeam = 1
-		elseif t2.alivePlayers > t1.alivePlayers then
-			winningTeam = 2
-		end
-		table.insert(system._roundResults, { winningTeam = winningTeam, stats = {} })
-		system:_fireEvent("RoundOver", winningTeam, system._roundNumber)
-
-		local gameOver = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
-		if gameOver then
-			system:_transition(Configs.GAME_STATES.GameOver)
-		else
-			system:_transition(Configs.GAME_STATES.RoundIntermission)
-		end
-	end)
-
 	local remaining = 0
 	local finalized = false
 	local function isCurrentRound()
@@ -348,13 +325,44 @@ local function enterRoundActive(system)
 			and system._stateMachine:GetState() == Configs.GAME_STATES.RoundActive
 	end
 
+	local function startRoundTimer()
+		system._roundTimerTask = task.delay(Configs.ROUND_DURATION, function()
+			system._roundTimerTask = nil
+			if not isCurrentRound() then return end
+
+			local t1 = system._teamStates[1]:Recalculate()
+			local t2 = system._teamStates[2]:Recalculate()
+			local winningTeam = if t1.alivePlayers > t2.alivePlayers then 1 elseif t2.alivePlayers > t1.alivePlayers then 2 else nil
+			system:_recordRoundQuestProgress(winningTeam)
+			table.insert(system._roundResults, { winningTeam = winningTeam, stats = {} })
+			system:_fireEvent("RoundOver", winningTeam, system._roundNumber)
+
+			local gameOver = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
+			system:_transition(if gameOver then Configs.GAME_STATES.GameOver else Configs.GAME_STATES.RoundIntermission)
+		end)
+	end
+
 	local function finalize()
 		if finalized then return end
 		if not isCurrentRound() then return end
 		finalized = true
+		for _, player in system._roundRoster do
+			local state = system._playerStates[player]
+			if not state or not state.positionedThisRound or state.status == Configs.PLAYER_STATUSES.Disconnected then continue end
+			local character = (player :: any).Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			local hrp = character and character:FindFirstChild("HumanoidRootPart")
+			if hrp and hrp:IsA("BasePart") then hrp.Anchored = false end
+			if humanoid then humanoid.WalkSpeed = Configs.DEFAULT_WALK_SPEED end
+			state.status = Configs.PLAYER_STATUSES.Alive
+			state:SetInGame(true)
+			player:SetAttribute(Configs.QUEST_ROUND_PARTICIPATED_ATTRIBUTE, true)
+			setPowerRoundEligible(player, true)
+		end
 		system._positioningPlayers = false
 		system:_broadcastUpdate()
 		system:_checkWinCondition()
+		if isCurrentRound() then startRoundTimer() end
 	end
 
 	
@@ -367,6 +375,7 @@ local function enterRoundActive(system)
 			continue
 		end
 		for i, player in players do
+			resetQuestRoundAttributes(player)
 			local playerState = system._playerStates[player]
 			if not playerState then continue end
 			if playerState.status == Configs.PLAYER_STATUSES.Disconnected then continue end
@@ -507,7 +516,7 @@ local function enterTeleportingOut(system)
 		end
 	end
 	local _, overallWinner = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
-	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, overallWinner, system._disconnectedStats, system:GetMatchId())
+	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, overallWinner, system._disconnectedStats, system:GetMatchId(), system._matchStartedAt, system._roundRoster)
 	local ok, err = TeleportUtility.teleportPlayersWithRetry(players, Configs.LOBBY_PLACE_ID, payload)
 	if not ok then
 		warn(`[Round] Teleport failed after retries: {err}`)

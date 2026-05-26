@@ -50,6 +50,7 @@ export type TeleportMetadata = {
 	queueType: number,
 	mapName: string,
 	timestamp: number,
+	expectedPlayersPerTeam: number?,
 	loadouts: { [string]: Loadout },
 	parties: { [string]: TeleportPartyEntry },
 	matchId: string,
@@ -63,6 +64,7 @@ export type PlayerDelta = {
 	actionId: string?,
 	kills: number?,
 	matchesPlayed: number?,
+	quest: { [string]: number }?,
 }
 
 export type GameToLobbyPayload = {

@@ -19,6 +19,10 @@ return {
 	},
 
 	COMBAT_ELIGIBLE_ATTRIBUTE = "CombatRoundEligible",
+	QUEST_ROUND_PARTICIPATED_ATTRIBUTE = "QuestRoundParticipated",
+	QUEST_USED_GUN_ATTRIBUTE = "QuestUsedGunThisRound",
+	QUEST_USED_KNIFE_ATTRIBUTE = "QuestUsedKnifeThisRound",
+	QUEST_USED_POWER_ATTRIBUTE = "QuestUsedPowerThisRound",
 
 	WAITING_PERIOD = 20,
 	ROUND_DURATION = 60,
@@ -52,6 +56,8 @@ return {
 	},
 
 	LOBBY_PLACE_ID = 92562692732027,
+	-- Studio always logs mock return teleport data; enable this for live diagnostics.
+	DEBUG_RETURN_TELEPORT_DATA = false,
 	RETRY_COUNT = 3,
 	EXPONENTIAL_BACKOFF_BASE = 1,
 	EXPONENTIAL_BACKOFF_EXPONENT = 2,
@@ -82,8 +88,8 @@ return {
 
 	LEGAL_TRANSITIONS = {
 		WaitingForPlayers = { "AssigningTeams", "Aborted" },
-		AssigningTeams = { "PreparingPlayers", "Aborted" },
-		PreparingPlayers = { "RoundActive", "Aborted" },
+		AssigningTeams = { "PreparingPlayers", "GameOver", "Aborted" },
+		PreparingPlayers = { "RoundActive", "GameOver", "Aborted" },
 		RoundActive = { "RoundIntermission", "GameOver", "Aborted" },
 		RoundIntermission = { "RoundActive", "GameOver", "Aborted" },
 		GameOver = { "TeleportingOut" },

@@ -25,7 +25,8 @@ end, { replayLast = true })
 local function buildTemplateTeleportData(player: Player)
 	return {
 		teamOnePlayers = { { UserId = player.UserId, Name = player.Name } },
-		teamTwoPlayers = { { UserId = 0, Name = "TestPlayer" } },
+		teamTwoPlayers = {},
+		expectedPlayersPerTeam = 1,
 		queueType = 1,
 		mapName = "TestMap",
 		timestamp = os.time(),
