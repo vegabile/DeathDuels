@@ -69,7 +69,9 @@ local function setupPlayer(player: Player)
 			ReconnectService.ReturnPlayerToLobby(player, registerReason)
 			return
 		end
-		ReconnectService.ConsumeReconnectTicket(player, ticketOrReason)
+		if not ReconnectService.ConsumeReconnectTicket(player, ticketOrReason) then
+			warn(`[Round] Failed to consume reconnect ticket for {player.Name}`)
+		end
 		return
 	end
 
