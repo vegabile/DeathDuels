@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
+local GlobalConfigs = require(ReplicatedStorage.GlobalConfigs)
 local Configs = require(ReplicatedStorage.Round.Configs)
 local SharedPowerConfigs = require(ReplicatedStorage.Power.Configs)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
@@ -25,6 +26,25 @@ RoundSystem.__index = RoundSystem
 local function setPowerRoundEligible(player: Player, eligible: boolean)
 	player:SetAttribute(SharedPowerConfigs.ROUND_ELIGIBLE_ATTRIBUTE, eligible)
 	player:SetAttribute(Configs.COMBAT_ELIGIBLE_ATTRIBUTE, eligible)
+end
+
+local ROUND_QUEST_ATTRIBUTES = {
+	Configs.QUEST_ROUND_PARTICIPATED_ATTRIBUTE,
+	Configs.QUEST_USED_GUN_ATTRIBUTE,
+	Configs.QUEST_USED_KNIFE_ATTRIBUTE,
+	Configs.QUEST_USED_POWER_ATTRIBUTE,
+}
+
+local function copyRoundQuestAttributes(fromPlayer: Player?, toPlayer: Player)
+	if not fromPlayer or fromPlayer == toPlayer then
+		return
+	end
+	for _, attributeName in ROUND_QUEST_ATTRIBUTES do
+		local value = fromPlayer:GetAttribute(attributeName)
+		if value ~= nil then
+			toPlayer:SetAttribute(attributeName, value)
+		end
+	end
 end
 
 local function isTeamFullyDisconnected(teamSnapshot): boolean
@@ -165,7 +185,7 @@ function RoundSystem:RegisterPlayer(player: Player)
 	setPowerRoundEligible(player, false)
 	table.insert(self._pendingPlayers, player)
 	self:_broadcastUpdate()
-	if #self._pendingPlayers >= self._expectedPlayerCount and self:CanStartMatch() then
+	if not GlobalConfigs.TEST_MODE and #self._pendingPlayers >= self._expectedPlayerCount and self:CanStartMatch() then
 		self:_transition(Configs.GAME_STATES.AssigningTeams)
 	end
 end
@@ -199,7 +219,7 @@ function RoundSystem:UnregisterPlayer(player: Player)
 		self:_fireEvent("PlayerStatusChanged", player, Configs.PLAYER_STATUSES.Disconnected)
 	end
 	self:_broadcastUpdate()
-	if not self:IsMatchEnded() then
+	if state == Configs.GAME_STATES.RoundActive and not self:IsMatchEnded() then
 		self:_checkWinCondition()
 	end
 end
@@ -362,6 +382,7 @@ function RoundSystem:RegisterReconnect(player: Player, ticket: any): (boolean, s
 
 	local oldPlayer = self._playersByUserId[userId] or playerState.player
 	if oldPlayer and oldPlayer ~= player then
+		copyRoundQuestAttributes(oldPlayer, player)
 		self._playerStates[oldPlayer] = nil
 	end
 
