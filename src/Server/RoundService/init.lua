@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
+local GlobalConfigs = require(ReplicatedStorage.GlobalConfigs)
 local Configs = require(ReplicatedStorage.Round.Configs)
 local SharedPowerConfigs = require(ReplicatedStorage.Power.Configs)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
@@ -165,7 +166,7 @@ function RoundSystem:RegisterPlayer(player: Player)
 	setPowerRoundEligible(player, false)
 	table.insert(self._pendingPlayers, player)
 	self:_broadcastUpdate()
-	if #self._pendingPlayers >= self._expectedPlayerCount and self:CanStartMatch() then
+	if not GlobalConfigs.TEST_MODE and #self._pendingPlayers >= self._expectedPlayerCount and self:CanStartMatch() then
 		self:_transition(Configs.GAME_STATES.AssigningTeams)
 	end
 end
@@ -199,7 +200,7 @@ function RoundSystem:UnregisterPlayer(player: Player)
 		self:_fireEvent("PlayerStatusChanged", player, Configs.PLAYER_STATUSES.Disconnected)
 	end
 	self:_broadcastUpdate()
-	if not self:IsMatchEnded() then
+	if state == Configs.GAME_STATES.RoundActive and not self:IsMatchEnded() then
 		self:_checkWinCondition()
 	end
 end

@@ -22,9 +22,9 @@ ServerEventBus:Connect("ProfileLoaded", function(player: Player)
 	PlayerReadiness.recordFact(player, "ProfileLoaded")
 end, { replayLast = true })
 
-local function buildTemplateTeleportData(player: Player)
+local function buildTemplateTeleportData()
 	return {
-		teamOnePlayers = { { UserId = player.UserId, Name = player.Name } },
+		teamOnePlayers = {},
 		teamTwoPlayers = {},
 		expectedPlayersPerTeam = 1,
 		queueType = 1,
@@ -74,7 +74,7 @@ local function setupPlayer(player: Player)
 
 	if GlobalConfigs.TEST_MODE then
 		print(`[Round] TEST_MODE — {player.Name} using template data (map: TestMap, 1v1)`)
-		teleportData = buildTemplateTeleportData(player)
+		teleportData = buildTemplateTeleportData()
 	else
 		local ok, err, sanitized = TeleportDataValidator.validate(rawData)
 		if not ok then
@@ -86,7 +86,9 @@ local function setupPlayer(player: Player)
 	end
 
 	if not roundSystem then
-		local expected = #teleportData.teamOnePlayers + #teleportData.teamTwoPlayers
+		local expected = if type(teleportData.expectedPlayersPerTeam) == "number"
+			then teleportData.expectedPlayersPerTeam * 2
+			else #teleportData.teamOnePlayers + #teleportData.teamTwoPlayers
 		print(`[Round] Creating RoundSystem — map: {teleportData.mapName}, expecting {expected} player(s)`)
 		roundSystem = RoundService.new(teleportData)
 		if GlobalConfigs.TEST_MODE then
