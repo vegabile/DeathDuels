@@ -192,6 +192,7 @@ function KnifeService._handleActionRequest(player: Player, payload: any)
 	end
 
 	action.serverExecute(player, state, directionVector, payload.restOrigin, payload.spawnCFrame)
+	player:SetAttribute(RoundConfigs.QUEST_USED_KNIFE_ATTRIBUTE, true)
 	knifeTrace(`serverExecute called for {action.name} by {player.Name}`)
 
 	task.delay(effectiveCooldown, function()

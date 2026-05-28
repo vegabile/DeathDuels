@@ -167,6 +167,7 @@ function GunService._handleActionRequest(player: Player, payload: any)
 	end
 
 	action.serverExecute(player, state, directionVector, payload.restOrigin)
+	player:SetAttribute(RoundConfigs.QUEST_USED_GUN_ATTRIBUTE, true)
 
 	task.delay(effectiveCooldown, function()
 		if playerStates[player] ~= state then return end
