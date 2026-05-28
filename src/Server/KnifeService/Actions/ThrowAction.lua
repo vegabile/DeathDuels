@@ -98,17 +98,6 @@ function ThrowAction.serverExecute(
 		broadcastSpawn = spawnCFrame
 	end
 
-	for _, otherPlayer in Players:GetPlayers() do
-		if otherPlayer ~= player then
-			NetworkRouter:Call("KnifeThrowBroadcast", otherPlayer, {
-				throwerUserId = player.UserId,
-				knifeName = knifeTool.Name,
-				directionVector = directionVector,
-				spawnCFrame = broadcastSpawn,
-			})
-		end
-	end
-
 	local projectile = KnifeProjectileHandler.spawnProjectile(
 		player,
 		directionVector,
@@ -137,7 +126,22 @@ function ThrowAction.serverExecute(
 		end,
 		authoritativeSpawn
 	)
-	return projectile ~= nil
+	if not projectile then
+		return false
+	end
+
+	for _, otherPlayer in Players:GetPlayers() do
+		if otherPlayer ~= player then
+			NetworkRouter:Call("KnifeThrowBroadcast", otherPlayer, {
+				throwerUserId = player.UserId,
+				knifeName = knifeTool.Name,
+				directionVector = directionVector,
+				spawnCFrame = broadcastSpawn,
+			})
+		end
+	end
+
+	return true
 end
 
 function ThrowAction.serverCleanup(_player: Player, _playerState: any)
