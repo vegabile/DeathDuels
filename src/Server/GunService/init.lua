@@ -166,8 +166,10 @@ function GunService._handleActionRequest(player: Player, payload: any)
 		directionVector = PayloadValidator.normalizeDirection(payload.directionVector)
 	end
 
-	action.serverExecute(player, state, directionVector, payload.restOrigin)
-	player:SetAttribute(RoundConfigs.QUEST_USED_GUN_ATTRIBUTE, true)
+	local executed = action.serverExecute(player, state, directionVector, payload.restOrigin)
+	if executed == true then
+		player:SetAttribute(RoundConfigs.QUEST_USED_GUN_ATTRIBUTE, true)
+	end
 
 	task.delay(effectiveCooldown, function()
 		if playerStates[player] ~= state then return end

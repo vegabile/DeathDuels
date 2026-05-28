@@ -53,24 +53,24 @@ local function processHitPlayer(attacker: Player, playerState: any, hitPlayer: P
 	debugPrint(DEBUG, `[StabAction] {attacker.Name} stabbed {hitPlayer.Name}`)
 end
 
-function StabAction.serverExecute(player: Player, playerState: any, _directionVector: Vector3?)
+function StabAction.serverExecute(player: Player, playerState: any, _directionVector: Vector3?, _restOrigin: Vector3?, _spawnCFrame: CFrame?): boolean
 	playerState.alreadyHit = {}
 	local startTime = tick()
 
 	local character = player.Character
 	if not character then
 		warn(`[KNIFE] [StabAction] no character for {player.Name}`)
-		return
+		return false
 	end
 	local knifeTool = KnifeUtility.findKnifeTool(character)
 	if not knifeTool then
 		warn(`[KNIFE] [StabAction] no knife tool for {player.Name}`)
-		return
+		return false
 	end
 	local hitbox = knifeTool:FindFirstChild("Hitbox")
 	if not (hitbox and hitbox:IsA("BasePart")) then
 		warn(`[KNIFE] [StabAction] no Hitbox on knife for {player.Name}`)
-		return
+		return false
 	end
 
 	local overlapParams = OverlapParams.new()
@@ -121,6 +121,7 @@ function StabAction.serverExecute(player: Player, playerState: any, _directionVe
 		local hitPlayer = hitCharacter and Players:GetPlayerFromCharacter(hitCharacter)
 		processHitPlayer(player, playerState, hitPlayer, hitCharacter)
 	end)
+	return true
 end
 
 function StabAction.serverCleanup(_player: Player, playerState: any)

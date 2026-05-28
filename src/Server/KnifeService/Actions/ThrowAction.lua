@@ -32,31 +32,31 @@ function ThrowAction.serverExecute(
 	directionVector: Vector3?,
 	restOrigin: Vector3?,
 	spawnCFrame: CFrame?
-)
+): boolean
 	if not directionVector then
 		warn(`[KNIFE] [ThrowAction] missing directionVector for {player.Name}`)
-		return
+		return false
 	end
 	if not restOrigin then
 		warn(`[KNIFE] [ThrowAction] missing restOrigin for {player.Name}`)
-		return
+		return false
 	end
 
 	local character = player.Character
 	if not character then
 		warn(`[KNIFE] [ThrowAction] no character for {player.Name}`)
-		return
+		return false
 	end
 	local hrp = character:FindFirstChild("HumanoidRootPart")
 	if not hrp then
 		warn(`[KNIFE] [ThrowAction] no HumanoidRootPart for {player.Name}`)
-		return
+		return false
 	end
 
 	
 	if (restOrigin - hrp.Position).Magnitude > AnimationsConfigs.MaxRestOriginDistance then
 		warn(`[KNIFE] [ThrowAction] restOrigin out of range for {player.Name}`)
-		return
+		return false
 	end
 
 	
@@ -71,7 +71,7 @@ function ThrowAction.serverExecute(
 	local knifeTool = KnifeUtility.findKnifeTool(character)
 	if not knifeTool then
 		warn(`[KNIFE] [ThrowAction] no knife tool for {player.Name}`)
-		return
+		return false
 	end
 	playerState.lastDirection = directionVector
 
@@ -109,7 +109,7 @@ function ThrowAction.serverExecute(
 		end
 	end
 
-	KnifeProjectileHandler.spawnProjectile(
+	local projectile = KnifeProjectileHandler.spawnProjectile(
 		player,
 		directionVector,
 		knifeTool,
@@ -137,6 +137,7 @@ function ThrowAction.serverExecute(
 		end,
 		authoritativeSpawn
 	)
+	return projectile ~= nil
 end
 
 function ThrowAction.serverCleanup(_player: Player, _playerState: any)

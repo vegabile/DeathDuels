@@ -191,8 +191,10 @@ function KnifeService._handleActionRequest(player: Player, payload: any)
 		directionVector = PayloadValidator.normalizeDirection(payload.directionVector)
 	end
 
-	action.serverExecute(player, state, directionVector, payload.restOrigin, payload.spawnCFrame)
-	player:SetAttribute(RoundConfigs.QUEST_USED_KNIFE_ATTRIBUTE, true)
+	local executed = action.serverExecute(player, state, directionVector, payload.restOrigin, payload.spawnCFrame)
+	if executed == true then
+		player:SetAttribute(RoundConfigs.QUEST_USED_KNIFE_ATTRIBUTE, true)
+	end
 	knifeTrace(`serverExecute called for {action.name} by {player.Name}`)
 
 	task.delay(effectiveCooldown, function()

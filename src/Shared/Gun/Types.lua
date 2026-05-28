@@ -11,7 +11,7 @@ export type GunActionConfig = {
 
 
 export type ServerGunAction = GunActionConfig & {
-	serverExecute: (player: Player, playerState: any, directionVector: Vector3?, restOrigin: Vector3?) -> (),
+	serverExecute: (player: Player, playerState: any, directionVector: Vector3?, restOrigin: Vector3?) -> boolean,
 	serverCleanup: (player: Player, playerState: any) -> (),
 }
 
