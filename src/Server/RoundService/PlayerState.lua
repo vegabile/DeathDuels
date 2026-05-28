@@ -107,6 +107,13 @@ function PlayerState:Serialize()
 	for key, value in self.matchStats do
 		matchStatsCopy[key] = value
 	end
+	local questCopy = nil
+	if type(self.quest) == "table" then
+		questCopy = {}
+		for key, value in self.quest do
+			questCopy[key] = value
+		end
+	end
 
 	return {
 		player = {
@@ -118,6 +125,7 @@ function PlayerState:Serialize()
 		isInGame = self.isInGame,
 		stats = statsCopy,
 		matchStats = matchStatsCopy,
+		quest = questCopy,
 	}
 end
 

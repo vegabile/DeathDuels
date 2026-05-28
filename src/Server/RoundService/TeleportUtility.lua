@@ -16,18 +16,33 @@ local function sanitizeKills(value: any): number
 	return math.floor(value)
 end
 
+local function sanitizeQuest(quest: any): { [string]: number }?
+	if type(quest) ~= "table" then
+		return nil
+	end
+	local sanitized = {}
+	for key, value in quest do
+		if type(key) == "string" and isFiniteNumber(value) and value > 0 then
+			sanitized[key] = math.floor(value)
+		end
+	end
+	return if next(sanitized) ~= nil then sanitized else nil
+end
+
 function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, roundResults: { any }, winningTeam: number?, disconnectedStats: { [string]: any }?, matchId: string?)
 	local delta = {}
 
 	for player, state in playerStates do
 		local rawKills = if type(state.GetMatchStat) == "function" then state:GetMatchStat("kills") else state:GetStat("kills")
 		local kills = sanitizeKills(rawKills)
+		local quest = sanitizeQuest(state.quest)
 		delta[tostring(player.UserId)] = {
 			coinsEarned   = kills * Configs.COINS_PER_KILL,
 			xpEarned      = kills * Configs.XP_PER_KILL,
 			actionId      = matchId and `match:{matchId}:player:{player.UserId}` or nil,
 			kills         = kills,
 			matchesPlayed = 1,
+			quest         = quest,
 		}
 	end
 
@@ -35,12 +50,14 @@ function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, rou
 		for odUserId, data in disconnectedStats do
 			local stats = data.matchStats or data.stats
 			local kills = sanitizeKills(stats and stats.kills or 0)
+			local quest = sanitizeQuest(data.quest)
 			delta[odUserId] = {
 				coinsEarned   = kills * Configs.COINS_PER_KILL,
 				xpEarned      = kills * Configs.XP_PER_KILL,
 				actionId      = matchId and `match:{matchId}:player:{odUserId}` or nil,
 				kills         = kills,
 				matchesPlayed = 1,
+				quest         = quest,
 			}
 		end
 	end
