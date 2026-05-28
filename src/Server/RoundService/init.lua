@@ -28,6 +28,25 @@ local function setPowerRoundEligible(player: Player, eligible: boolean)
 	player:SetAttribute(Configs.COMBAT_ELIGIBLE_ATTRIBUTE, eligible)
 end
 
+local ROUND_QUEST_ATTRIBUTES = {
+	Configs.QUEST_ROUND_PARTICIPATED_ATTRIBUTE,
+	Configs.QUEST_USED_GUN_ATTRIBUTE,
+	Configs.QUEST_USED_KNIFE_ATTRIBUTE,
+	Configs.QUEST_USED_POWER_ATTRIBUTE,
+}
+
+local function copyRoundQuestAttributes(fromPlayer: Player?, toPlayer: Player)
+	if not fromPlayer or fromPlayer == toPlayer then
+		return
+	end
+	for _, attributeName in ROUND_QUEST_ATTRIBUTES do
+		local value = fromPlayer:GetAttribute(attributeName)
+		if value ~= nil then
+			toPlayer:SetAttribute(attributeName, value)
+		end
+	end
+end
+
 local function isTeamFullyDisconnected(teamSnapshot): boolean
 	if not teamSnapshot then
 		return false
@@ -363,6 +382,7 @@ function RoundSystem:RegisterReconnect(player: Player, ticket: any): (boolean, s
 
 	local oldPlayer = self._playersByUserId[userId] or playerState.player
 	if oldPlayer and oldPlayer ~= player then
+		copyRoundQuestAttributes(oldPlayer, player)
 		self._playerStates[oldPlayer] = nil
 	end
 

@@ -10,6 +10,7 @@ export type PlayerStateData = {
 	isInGame: boolean,
 	stats: { kills: number, deaths: number, points: number, [string]: number },
 	matchStats: { kills: number, deaths: number, points: number, [string]: number },
+	quest: { [string]: number }?,
 }
 
 export type TeamStateData = {
