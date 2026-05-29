@@ -547,6 +547,6 @@ end
 
 
 RoundOrchestrator.ApplySkipped = applySkipped
-RoundOrchestrator._testApplySkipped = applySkipped
+RoundOrchestrator.SetPowerRoundEligible = setPowerRoundEligible
 
 return RoundOrchestrator
