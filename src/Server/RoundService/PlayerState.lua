@@ -20,6 +20,8 @@ function PlayerState.new(player: Player, teamNumber: number)
 		isInGame = false,
 		stats = cloneDefaultStats(),
 		matchStats = cloneDefaultStats(),
+		quest = {},
+		questWinStreak = 0,
 		positionedThisRound = false,
 		_locked = false,
 	}, PlayerState)
