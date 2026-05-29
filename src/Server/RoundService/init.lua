@@ -182,7 +182,7 @@ function RoundSystem:RegisterPlayer(player: Player)
 			return
 		end
 	end
-	setPowerRoundEligible(player, false)
+	RoundOrchestrator.SetPowerRoundEligible(player, false)
 	table.insert(self._pendingPlayers, player)
 	self:_broadcastUpdate()
 	if not GlobalConfigs.TEST_MODE and #self._pendingPlayers >= self._expectedPlayerCount and self:CanStartMatch() then
@@ -191,7 +191,7 @@ function RoundSystem:RegisterPlayer(player: Player)
 end
 
 function RoundSystem:UnregisterPlayer(player: Player)
-	setPowerRoundEligible(player, false)
+	RoundOrchestrator.SetPowerRoundEligible(player, false)
 	local state = self._stateMachine:GetState()
 
 	if state == Configs.GAME_STATES.WaitingForPlayers then
@@ -372,7 +372,7 @@ function RoundSystem:RegisterReconnect(player: Player, ticket: any): (boolean, s
 		return false, "match-ended"
 	end
 
-	setPowerRoundEligible(player, false)
+	RoundOrchestrator.SetPowerRoundEligible(player, false)
 	local userId = player.UserId
 	local playerState = self._playerStatesByUserId[userId]
 	if not playerState then
@@ -523,7 +523,7 @@ function RoundSystem:_onStateChanged(from: string, to: string)
 	ServerEventBus:FireSticky("RoundStateChanged", to)
 	if to ~= Configs.GAME_STATES.RoundActive then
 		for _, playerState in self._playerStates do
-			setPowerRoundEligible(playerState.player, false)
+			RoundOrchestrator.SetPowerRoundEligible(playerState.player, false)
 		end
 	end
 	self:_broadcastUpdate()
