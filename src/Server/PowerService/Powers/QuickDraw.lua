@@ -14,7 +14,7 @@ function QuickDraw.validatePayload(payload: any): (boolean, string?)
 	return true, nil
 end
 
-function QuickDraw:Execute(player: Player, _payload: any)
+function QuickDraw:Execute(player: Player, _payload: any): boolean
 	player:SetAttribute("KnifeCooldownMult", cfg.cooldownMult)
 	player:SetAttribute("GunCooldownMult", cfg.cooldownMult)
 
@@ -22,6 +22,8 @@ function QuickDraw:Execute(player: Player, _payload: any)
 		player:SetAttribute("KnifeCooldownMult", nil)
 		player:SetAttribute("GunCooldownMult", nil)
 	end)
+
+	return true
 end
 
 return QuickDraw

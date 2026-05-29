@@ -14,7 +14,7 @@ function WeaponBuff.validatePayload(payload: any): (boolean, string?)
 	return true, nil
 end
 
-function WeaponBuff:Execute(player: Player, _payload: any)
+function WeaponBuff:Execute(player: Player, _payload: any): boolean
 	player:SetAttribute("KnifeCooldownMult", cfg.knifeCooldownMult)
 	player:SetAttribute("GunCooldownMult", cfg.gunCooldownMult)
 
@@ -22,6 +22,8 @@ function WeaponBuff:Execute(player: Player, _payload: any)
 		player:SetAttribute("KnifeCooldownMult", nil)
 		player:SetAttribute("GunCooldownMult", nil)
 	end)
+
+	return true
 end
 
 return WeaponBuff

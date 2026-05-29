@@ -14,11 +14,11 @@ function Dash.validatePayload(payload: any): (boolean, string?)
 	return true, nil
 end
 
-function Dash:Execute(player: Player, _payload: any)
+function Dash:Execute(player: Player, _payload: any): boolean
 	local char = player.Character
-	if not char then warn(`[Dash] No character for {player.Name}`); return end
+	if not char then warn(`[Dash] No character for {player.Name}`); return false end
 	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp or not hrp:IsA("BasePart") then warn(`[Dash] No HumanoidRootPart for {player.Name}`); return end
+	if not hrp or not hrp:IsA("BasePart") then warn(`[Dash] No HumanoidRootPart for {player.Name}`); return false end
 
 	local direction = hrp.CFrame.LookVector
 
@@ -41,6 +41,8 @@ function Dash:Execute(player: Player, _payload: any)
 		if linearVelocity and linearVelocity.Parent then linearVelocity:Destroy() end
 		if attachment and attachment.Parent then attachment:Destroy() end
 	end)
+
+	return true
 end
 
 return Dash

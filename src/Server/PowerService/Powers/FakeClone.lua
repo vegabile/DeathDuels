@@ -15,11 +15,11 @@ function FakeClone.validatePayload(payload: any): (boolean, string?)
 	return true, nil
 end
 
-function FakeClone:Execute(player: Player, _payload: any)
+function FakeClone:Execute(player: Player, _payload: any): boolean
 	local char = player.Character
-	if not char then warn(`[FakeClone] No character for {player.Name}`); return end
+	if not char then warn(`[FakeClone] No character for {player.Name}`); return false end
 	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp or not hrp:IsA("BasePart") then warn(`[FakeClone] No HRP for {player.Name}`); return end
+	if not hrp or not hrp:IsA("BasePart") then warn(`[FakeClone] No HRP for {player.Name}`); return false end
 
 	local clone = char:Clone()
 
@@ -44,6 +44,8 @@ function FakeClone:Execute(player: Player, _payload: any)
 	end
 
 	Debris:AddItem(clone, cfg.durationSec)
+
+	return true
 end
 
 return FakeClone

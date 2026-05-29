@@ -14,11 +14,11 @@ function Ghost.validatePayload(payload: any): (boolean, string?)
 	return true, nil
 end
 
-function Ghost:Execute(player: Player, _payload: any)
+function Ghost:Execute(player: Player, _payload: any): boolean
 	local char = player.Character
-	if not char then warn(`[Ghost] No character for {player.Name}`); return end
+	if not char then warn(`[Ghost] No character for {player.Name}`); return false end
 	local hum = char:FindFirstChildOfClass("Humanoid")
-	if not hum then warn(`[Ghost] No Humanoid for {player.Name}`); return end
+	if not hum then warn(`[Ghost] No Humanoid for {player.Name}`); return false end
 
 	local originals: { [Instance]: number } = {}
 	for _, desc in char:GetDescendants() do
@@ -49,6 +49,8 @@ function Ghost:Execute(player: Player, _payload: any)
 
 	hum.Died:Connect(revert)
 	task.delay(cfg.durationSec, revert)
+
+	return true
 end
 
 return Ghost

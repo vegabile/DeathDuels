@@ -19,9 +19,9 @@ function Reveal.validatePayload(payload: any): (boolean, string?)
 	return true, nil
 end
 
-function Reveal:Execute(player: Player, _payload: any)
+function Reveal:Execute(player: Player, _payload: any): boolean
 	local myTeam = TeleportMetadataService.GetTeam(player)
-	if not myTeam then warn(`[Reveal] No team for {player.Name}`); return end
+	if not myTeam then warn(`[Reveal] No team for {player.Name}`); return false end
 
 	local enemies: { Player } = {}
 	for _, other in Players:GetPlayers() do
@@ -36,7 +36,7 @@ function Reveal:Execute(player: Player, _payload: any)
 
 	if #enemies == 0 then
 		warn(`[Reveal] No alive enemies to reveal for {player.Name}`)
-		return
+		return false
 	end
 
 	local target = enemies[math.random(1, #enemies)]
@@ -45,6 +45,8 @@ function Reveal:Execute(player: Player, _payload: any)
 		targetCharacter = target.Character,
 		durationSec = cfg.durationSec,
 	})
+
+	return true
 end
 
 return Reveal

@@ -14,7 +14,7 @@ function ShieldPulse.validatePayload(payload: any): (boolean, string?)
 	return true, nil
 end
 
-function ShieldPulse:Execute(player: Player, _payload: any)
+function ShieldPulse:Execute(player: Player, _payload: any): boolean
 	player:SetAttribute("ShieldActive", true)
 
 	task.delay(cfg.durationSec, function()
@@ -23,6 +23,8 @@ function ShieldPulse:Execute(player: Player, _payload: any)
 			player:SetAttribute("ShieldActive", nil)
 		end
 	end)
+
+	return true
 end
 
 return ShieldPulse

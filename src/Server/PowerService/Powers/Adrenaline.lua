@@ -14,11 +14,11 @@ function Adrenaline.validatePayload(payload: any): (boolean, string?)
 	return true, nil
 end
 
-function Adrenaline:Execute(player: Player, _payload: any)
+function Adrenaline:Execute(player: Player, _payload: any): boolean
 	local char = player.Character
-	if not char then warn(`[Adrenaline] No character for {player.Name}`); return end
+	if not char then warn(`[Adrenaline] No character for {player.Name}`); return false end
 	local hum = char:FindFirstChildOfClass("Humanoid")
-	if not hum then warn(`[Adrenaline] No Humanoid for {player.Name}`); return end
+	if not hum then warn(`[Adrenaline] No Humanoid for {player.Name}`); return false end
 
 	local baseSpeed = hum.WalkSpeed
 	hum.WalkSpeed = baseSpeed * cfg.speedMult
@@ -32,6 +32,8 @@ function Adrenaline:Execute(player: Player, _payload: any)
 		player:SetAttribute("KnifeCooldownMult", nil)
 		player:SetAttribute("GunCooldownMult", nil)
 	end)
+
+	return true
 end
 
 return Adrenaline

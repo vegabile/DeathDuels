@@ -64,7 +64,6 @@ end
 function PowerService:Activate(powerName: string, payload: any): PowerResult
 	local now = tick()
 
-	--// 1. Resolve requested power
 	if type(powerName) ~= "string" then
 		return { success = false, reason = Reasons.UnknownPower }
 	end
@@ -73,12 +72,10 @@ function PowerService:Activate(powerName: string, payload: any): PowerResult
 		return { success = false, reason = Reasons.UnknownPower }
 	end
 
-	--// 2. Permission — requested must equal equipped
 	if self._equippedPower == nil or self._equippedPower.name ~= requested.name then
 		return { success = false, reason = Reasons.NoPermission }
 	end
 
-	--// 3. External state gates
 	if not self.player:IsDescendantOf(Players) then
 		return { success = false, reason = Reasons.InvalidState }
 	end
@@ -91,33 +88,38 @@ function PowerService:Activate(powerName: string, payload: any): PowerResult
 		return { success = false, reason = Reasons.InvalidState }
 	end
 
-	--// 4. Debounce — stamp runs on every attempt from here on
 	local lastAttempt = self._lastAttempt[requested.name] or 0
 	if (now - lastAttempt) < Configs.DEBOUNCE then
 		self._lastAttempt[requested.name] = now
 		return { success = false, reason = Reasons.Debounced }
 	end
 
-	--// 5. Payload validation
 	local ok, reason = requested.validatePayload(payload)
 	if not ok then
 		self._lastAttempt[requested.name] = now
 		return { success = false, reason = reason or Reasons.InvalidTarget }
 	end
 
-	--// 6. Cooldown check
 	local expiry = self._cooldowns[requested.name] or 0
 	if now < expiry then
 		self._lastAttempt[requested.name] = now
 		return { success = false, reason = Reasons.OnCooldown }
 	end
 
-	--// 7. Lock == cooldown — start cooldown BEFORE handoff
-	self._cooldowns[requested.name] = now + requested.cooldown
 	self._lastAttempt[requested.name] = now
 
-	--// 8. Handoff — fire-and-forget, no pcall
-	requested:Execute(self.player, payload)
+	local ok, applied = pcall(function()
+		return requested:Execute(self.player, payload)
+	end)
+	if not ok then
+		warn(`[POWER] Execute threw for '{requested.name}': {applied}`)
+		return { success = false, reason = Reasons.InvalidState }
+	end
+	if applied ~= true then
+		return { success = false, reason = Reasons.InvalidState }
+	end
+
+	self._cooldowns[requested.name] = now + requested.cooldown
 
 	return { success = true, reason = nil }
 end

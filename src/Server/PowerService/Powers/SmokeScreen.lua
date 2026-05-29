@@ -15,11 +15,11 @@ function SmokeScreen.validatePayload(payload: any): (boolean, string?)
 	return true, nil
 end
 
-function SmokeScreen:Execute(player: Player, _payload: any)
+function SmokeScreen:Execute(player: Player, _payload: any): boolean
 	local char = player.Character
-	if not char then warn(`[SmokeScreen] No character for {player.Name}`); return end
+	if not char then warn(`[SmokeScreen] No character for {player.Name}`); return false end
 	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp or not hrp:IsA("BasePart") then warn(`[SmokeScreen] No HRP for {player.Name}`); return end
+	if not hrp or not hrp:IsA("BasePart") then warn(`[SmokeScreen] No HRP for {player.Name}`); return false end
 
 	local origin = hrp.Position + hrp.CFrame.LookVector * cfg.spawnForward
 
@@ -49,6 +49,8 @@ function SmokeScreen:Execute(player: Player, _payload: any)
 	emitter.Parent = part
 
 	Debris:AddItem(part, cfg.durationSec)
+
+	return true
 end
 
 return SmokeScreen

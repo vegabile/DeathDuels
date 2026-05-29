@@ -14,11 +14,11 @@ function Launch.validatePayload(payload: any): (boolean, string?)
 	return true, nil
 end
 
-function Launch:Execute(player: Player, _payload: any)
+function Launch:Execute(player: Player, _payload: any): boolean
 	local char = player.Character
-	if not char then warn(`[Launch] No character for {player.Name}`); return end
+	if not char then warn(`[Launch] No character for {player.Name}`); return false end
 	local hum = char:FindFirstChildOfClass("Humanoid")
-	if not hum then warn(`[Launch] No Humanoid for {player.Name}`); return end
+	if not hum then warn(`[Launch] No Humanoid for {player.Name}`); return false end
 
 	local baseJump = hum.JumpPower
 	hum.JumpPower = baseJump * cfg.jumpPowerMult
@@ -29,6 +29,8 @@ function Launch:Execute(player: Player, _payload: any)
 			hum.JumpPower = baseJump
 		end
 	end)
+
+	return true
 end
 
 return Launch

@@ -14,12 +14,14 @@ function KnifeSpeedBoost.validatePayload(payload: any): (boolean, string?)
 	return true, nil
 end
 
-function KnifeSpeedBoost:Execute(player: Player, _payload: any)
+function KnifeSpeedBoost:Execute(player: Player, _payload: any): boolean
 	player:SetAttribute("KnifeCooldownMult", cfg.knifeCooldownMult)
 
 	task.delay(cfg.durationSec, function()
 		player:SetAttribute("KnifeCooldownMult", nil)
 	end)
+
+	return true
 end
 
 return KnifeSpeedBoost
