@@ -1,9 +1,17 @@
 local TeleportService = game:GetService("TeleportService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MemoryStoreService = game:GetService("MemoryStoreService")
+local HttpService = game:GetService("HttpService")
 local GlobalConfigs = require(ReplicatedStorage.GlobalConfigs)
 local Configs = require(ReplicatedStorage.Round.Configs)
 
 local TeleportUtility = {}
+
+local rewardStore = MemoryStoreService:GetHashMap(Configs.MATCH_REWARD_STORE_NAME)
+
+local function rewardKey(userId: number): string
+	return `{Configs.MATCH_REWARD_KEY_PREFIX}{tostring(userId)}`
+end
 
 local function isFiniteNumber(value: any): boolean
 	return type(value) == "number" and value == value and value > -math.huge and value < math.huge
@@ -48,7 +56,67 @@ function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, rou
 	return {
 		delta = delta,
 		returnSpawnPartName = Configs.POST_ROUND_SPAWN_PART,
+		--// Non-amount marker the lobby keys post-round spawn + reconnect
+		--// suppression off (F005). Amounts now live in the MemoryStore record.
+		reconnectReturn = true,
 	}
+end
+
+--// Writes the server-authoritative reward record for each player to the shared
+--// MemoryStore HashMap the lobby consumes (F005). Called BEFORE the teleport so
+--// the record is in place when the player lands. Each record carries a one-time
+--// token (the lobby's idempotency uuid). Per-key failures warn (never silent) so
+--// a single MemoryStore error cannot strand the whole teleport.
+function TeleportUtility.writeRewardRecords(payload: { delta: { [string]: any } }, matchId: string?)
+	if GlobalConfigs.TEST_MODE then
+		warn("[TeleportUtility] TEST_MODE active — skipping reward record write")
+		return
+	end
+	if type(payload) ~= "table" or type(payload.delta) ~= "table" then
+		warn("[TeleportUtility] writeRewardRecords: payload.delta missing — no reward records written")
+		return
+	end
+
+	local matchJobId = game.JobId
+	local placeId = game.PlaceId
+	local writtenAt = os.time()
+
+	for userIdString, entry in payload.delta do
+		local userId = tonumber(userIdString)
+		if type(userId) ~= "number" then
+			warn(`[TeleportUtility] writeRewardRecords: non-numeric userId '{tostring(userIdString)}' — skipping`)
+			continue
+		end
+		if type(entry) ~= "table" then
+			warn(`[TeleportUtility] writeRewardRecords: delta entry for {userIdString} not a table — skipping`)
+			continue
+		end
+
+		local record = {
+			token = HttpService:GenerateGUID(false),
+			matchId = matchId,
+			matchJobId = matchJobId,
+			placeId = placeId,
+			userId = userId,
+			writtenAt = writtenAt,
+			reward = {
+				coinsEarned   = entry.coinsEarned,
+				xpEarned      = entry.xpEarned,
+				kills         = entry.kills,
+				wins          = entry.wins,
+				losses        = entry.losses,
+				deaths        = entry.deaths,
+				matchesPlayed = entry.matchesPlayed,
+			},
+		}
+
+		local ok, err = pcall(function()
+			rewardStore:SetAsync(rewardKey(userId), record, Configs.MATCH_REWARD_TTL_SECONDS)
+		end)
+		if not ok then
+			warn(`[TeleportUtility] writeRewardRecords: SetAsync failed for {userIdString}: {tostring(err)}`)
+		end
+	end
 end
 
 function TeleportUtility._teleportPlayers(players: { Player }, placeId: number, teleportData: {}): (boolean, string?)

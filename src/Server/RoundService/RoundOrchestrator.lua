@@ -508,6 +508,9 @@ local function enterTeleportingOut(system)
 	end
 	local _, overallWinner = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
 	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, overallWinner, system._disconnectedStats, system:GetMatchId())
+	--// Write the server-authoritative reward records BEFORE teleporting so the
+	--// record is in place when the player lands in the lobby (F005).
+	TeleportUtility.writeRewardRecords(payload, system:GetMatchId())
 	local ok, err = TeleportUtility.teleportPlayersWithRetry(players, Configs.LOBBY_PLACE_ID, payload)
 	if not ok then
 		warn(`[Round] Teleport failed after retries: {err}`)

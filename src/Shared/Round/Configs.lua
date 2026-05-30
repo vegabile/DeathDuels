@@ -56,6 +56,13 @@ return {
 	EXPONENTIAL_BACKOFF_BASE = 1,
 	EXPONENTIAL_BACKOFF_EXPONENT = 2,
 
+	--// Server-authoritative match-return reward (F005). The lobby reads
+	--// MATCH_REWARD_KEY_PREFIX .. userId from this HashMap. These three values
+	--// MUST stay identical to the lobby's MatchReturn service.
+	MATCH_REWARD_STORE_NAME = "DeathDuelsMatchReward",
+	MATCH_REWARD_KEY_PREFIX = "MatchReward:",
+	MATCH_REWARD_TTL_SECONDS = 300,
+
 	ROUNDS_TO_WIN = 5,
 	MAX_ROUNDS = 9,
 	COINS_PER_KILL = 10,
