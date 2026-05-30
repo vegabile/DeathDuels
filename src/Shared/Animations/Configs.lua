@@ -3,6 +3,7 @@
 return {
 	MarkerNames = {
 		Release = "Release",
+		KnifeStop = "KnifeStop",
 	},
 
 	
