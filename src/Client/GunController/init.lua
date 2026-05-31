@@ -6,7 +6,6 @@ local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 local GunStateMachine = require(ReplicatedStorage.Gun.GunStateMachine)
 local SharedConfigs = require(ReplicatedStorage.Gun.Configs)
 
-local AnimationsConfigs = require(ReplicatedStorage.Animations.Configs)
 local AnimationType = require(ReplicatedStorage.Animations.AnimationType)
 local AnimationProfile = require(ReplicatedStorage.Animations.AnimationProfile)
 local RoundConfigs = require(ReplicatedStorage.Round.Configs)
@@ -14,6 +13,7 @@ local RoundConfigs = require(ReplicatedStorage.Round.Configs)
 local Configs = require(script.Configs)
 local ActionRegistry = require(script.ActionRegistry)
 local AnimationController = require(script.Parent.AnimationController)
+local WeaponAnimationLifecycle = require(script.Parent.WeaponAnimationLifecycle)
 local CancellationToken = require(script.Parent.CancellationToken)
 local ClientEventBus = require(script.Parent.ClientEventBus)
 local InputPosition = require(script.Parent.InputPosition)
@@ -23,7 +23,6 @@ local DEBUG = Configs.DEBUG_MODE
 local debugPrint = DebugUtility.Print
 
 local GunController = {}
-type CancellationTokenToken = CancellationToken.Token
 
 local localPlayer = Players.LocalPlayer
 local stateMachine = GunStateMachine.new()
@@ -31,61 +30,31 @@ local sequenceId = 0
 local gunEquipped = false
 local remoteName: string = ""
 local remoteConnection: RBXScriptConnection? = nil
-local safetyTimeoutToken: CancellationTokenToken? = nil
-local pendingActionGeneration = 0
 local roundActive = false
-local pendingAction: {
-	generation: number,
-	sequenceId: number,
-	actionName: string,
-	restOffset: CFrame?,
-	handle: any,
-	markerObserverDisconnect: (() -> ())?,
-	releaseToken: CancellationTokenToken?,
-}? = nil
-local idleHandle: any = nil
+local state: WeaponAnimationLifecycle.LifecycleState = {
+	pendingAction = nil,
+	generation = 0,
+	idleHandle = nil,
+	safetyTimeoutToken = nil,
+}
 
 local function restartIdle()
-	if not gunEquipped then return end
-	local character = localPlayer.Character
-	if not character then return end
-	local tool = character:FindFirstChildWhichIsA("Tool")
-	if not tool then return end
-
-	local profile = AnimationProfile.resolve(tool.Name, SharedConfigs.AnimationProfiles, AnimationType.Idle)
-	if not profile or profile.id == "" then return end
-	idleHandle = AnimationController.playLooped(character, profile.id)
+	WeaponAnimationLifecycle.restartIdle(state, gunEquipped, localPlayer.Character, SharedConfigs.AnimationProfiles)
 end
 
 local function clearSafetyTimeout()
-	CancellationToken.cancel(safetyTimeoutToken)
-	safetyTimeoutToken = nil
-end
-
-local function clearPendingRelease(snapshot: any)
-	if not snapshot then return end
-	if snapshot.markerObserverDisconnect then
-		snapshot.markerObserverDisconnect()
-		snapshot.markerObserverDisconnect = nil
-	end
-	if snapshot.releaseToken then
-		CancellationToken.cancel(snapshot.releaseToken)
-		snapshot.releaseToken = nil
-	end
+	WeaponAnimationLifecycle.clearSafetyTimeout(state)
 end
 
 local function clearPendingAction()
-	if pendingAction then
-		clearPendingRelease(pendingAction)
-		pendingAction = nil
-	end
+	WeaponAnimationLifecycle.clearPendingAction(state)
 end
 
 local function cancelPending()
-	pendingActionGeneration += 1
+	state.generation += 1
 	clearPendingAction()
 	AnimationController.stopCurrent()
-	idleHandle = nil
+	state.idleHandle = nil
 	clearSafetyTimeout()
 	GunStateMachine.resetAll(stateMachine)
 	restartIdle()
@@ -129,52 +98,11 @@ function GunController.onGunUnequipped()
 end
 
 local function schedulePendingRelease(profile: any, onRelease: (snapshot: any) -> ())
-	local handle = pendingAction and pendingAction.handle
-	local capturedGen = pendingActionGeneration
-	local releaseTime = (profile and profile.releaseTime) or AnimationsConfigs.DefaultReleaseTime
-	local hardTimeout = releaseTime + AnimationsConfigs.ReleaseTimeoutBuffer
-	local fired = false
-
-	local function fireOnce(source: string)
-		if fired then return end
-		if capturedGen ~= pendingActionGeneration then return end
-
-		local snapshot = pendingAction
-		if not snapshot then return end
-
-		fired = true
-		clearPendingRelease(snapshot)
-		onRelease(snapshot)
-	end
-
-	if not handle then
-		warn("[GunController] Shoot release missing animation handle; proceeding without animation")
-		fireOnce("nohandle")
-		return
-	end
-
-	if handle.isNoop then
-		fireOnce("noanimation")
-		return
-	end
-
-	local releaseToken = CancellationToken.new()
-	pendingAction.releaseToken = releaseToken
-	pendingAction.markerObserverDisconnect = handle.observeMarker(AnimationsConfigs.MarkerNames.Release, function(markerFired: boolean)
-		if markerFired then
-			fireOnce("marker")
-		end
-	end)
-
-	CancellationToken.delay(releaseToken, releaseTime, function()
-		fireOnce("fallback")
-	end)
-
-	CancellationToken.delay(releaseToken, hardTimeout, function()
-		if not fired then
-			fireOnce("hardtimeout")
-		end
-	end)
+	WeaponAnimationLifecycle.schedulePendingRelease(state, {
+		actionName = "Shoot",
+		profile = profile,
+		logPrefix = "[GunController]",
+	}, onRelease)
 end
 
 function GunController.performAction(actionName: string)
@@ -194,8 +122,8 @@ function GunController.performAction(actionName: string)
 	end
 
 	sequenceId += 1
-	pendingActionGeneration += 1
-	local thisGen = pendingActionGeneration
+	state.generation += 1
+	local thisGen = state.generation
 	local thisSeq = sequenceId
 
 	local character = localPlayer.Character
@@ -225,7 +153,7 @@ function GunController.performAction(actionName: string)
 
 		local worldCFrame = shootPoint.WorldCFrame
 		local restOffset = hrp.CFrame:ToObjectSpace(worldCFrame)
-		pendingAction = {
+		state.pendingAction = {
 			generation = thisGen,
 			sequenceId = thisSeq,
 			actionName = actionName,
@@ -240,9 +168,9 @@ function GunController.performAction(actionName: string)
 		return
 	end
 
-	if idleHandle then
-		idleHandle.stop()
-		idleHandle = nil
+	if state.idleHandle then
+		state.idleHandle.stop()
+		state.idleHandle = nil
 	end
 
 	local profiles = SharedConfigs.AnimationProfiles
@@ -260,13 +188,13 @@ function GunController.performAction(actionName: string)
 			table.insert(ids, shoot.id)
 		end
 
-		pendingAction.handle = AnimationController.playChain(character, ids)
-		if #ids > 0 and pendingAction.handle.isNoop then
+		state.pendingAction.handle = AnimationController.playChain(character, ids)
+		if #ids > 0 and state.pendingAction.handle.isNoop then
 			warn(`[GunController] Shoot animation failed to load for {tool.Name}; proceeding without animation`)
 		end
 
 		schedulePendingRelease(shoot, function(snapshot)
-			if snapshot.generation ~= pendingActionGeneration then return end
+			if snapshot.generation ~= state.generation then return end
 
 			local currentChar = localPlayer.Character
 			local currentHrp = currentChar and currentChar:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -293,10 +221,10 @@ function GunController.performAction(actionName: string)
 
 	clearSafetyTimeout()
 	local safetyToken = CancellationToken.new()
-	safetyTimeoutToken = safetyToken
+	state.safetyTimeoutToken = safetyToken
 	CancellationToken.delay(safetyToken, action.cooldown + Configs.SafetyTimeoutBuffer, function()
-		if safetyTimeoutToken ~= safetyToken then return end
-		safetyTimeoutToken = nil
+		if state.safetyTimeoutToken ~= safetyToken then return end
+		state.safetyTimeoutToken = nil
 		if sequenceId == thisSeq then
 			clearPendingAction()
 			GunStateMachine.resetAction(stateMachine, actionName)
@@ -311,7 +239,7 @@ function GunController._handleServerResponse(payload: any)
 	if payload.payloadType == "CooldownReset" then
 		GunStateMachine.resetAction(stateMachine, payload.actionName)
 		clearSafetyTimeout()
-		if pendingAction and pendingAction.actionName == payload.actionName then
+		if state.pendingAction and state.pendingAction.actionName == payload.actionName then
 			clearPendingAction()
 		end
 		restartIdle()

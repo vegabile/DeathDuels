@@ -55,7 +55,7 @@ return {
 		TeleportOutFailed = "Unable to return to lobby. Please rejoin.",
 	},
 
-	LOBBY_PLACE_ID = 92562692732027,
+	LOBBY_PLACE_ID = 96811128487129,
 	-- Studio always logs mock return teleport data; enable this for live diagnostics.
 	DEBUG_RETURN_TELEPORT_DATA = false,
 	RETRY_COUNT = 3,

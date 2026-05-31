@@ -59,6 +59,16 @@ local function validatePlayerList(list: any, fieldName: string, seenUserIds: { [
 	return true, nil
 end
 
+local function validateTeamCounts(teamOnePlayers: any, teamTwoPlayers: any, expectedPlayersPerTeam: number): (boolean, string?)
+	if #teamOnePlayers ~= expectedPlayersPerTeam then
+		return false, `teamOnePlayers has {#teamOnePlayers} player(s), expected {expectedPlayersPerTeam}`
+	end
+	if #teamTwoPlayers ~= expectedPlayersPerTeam then
+		return false, `teamTwoPlayers has {#teamTwoPlayers} player(s), expected {expectedPlayersPerTeam}`
+	end
+	return true, nil
+end
+
 local function cloneDefaultLoadout()
 	return {
 		knifeName = Configs.DEFAULT_LOADOUT.knifeName,
@@ -203,6 +213,11 @@ function TeleportDataValidator.validate(teleportData: any): (boolean, string?, {
 	if math.floor(teleportData.queueType) ~= teleportData.queueType or Configs.GAME_MODES[teleportData.queueType] == nil then
 		return false, "queueType is not a valid game mode index", nil
 	end
+
+	local expectedPlayersPerTeam = Configs.GAME_MODES[teleportData.queueType].playersPerTeam
+	ok, err = validateTeamCounts(teleportData.teamOnePlayers, teleportData.teamTwoPlayers, expectedPlayersPerTeam)
+	if not ok then return false, err, nil end
+
 	ok, err = MapValidator.validate(teleportData.mapName, teleportData.queueType)
 	if not ok then return false, err, nil end
 	if not isFiniteNumber(teleportData.timestamp) then
@@ -226,6 +241,7 @@ function TeleportDataValidator.validate(teleportData: any): (boolean, string?, {
 		teamOnePlayers = cloneTeamList(teleportData.teamOnePlayers),
 		teamTwoPlayers = cloneTeamList(teleportData.teamTwoPlayers),
 		queueType = teleportData.queueType,
+		expectedPlayersPerTeam = expectedPlayersPerTeam,
 		mapName = teleportData.mapName,
 		timestamp = teleportData.timestamp,
 		loadouts = teleportData.loadouts,
