@@ -10,6 +10,7 @@ export type PlayerStateData = {
 	isInGame: boolean,
 	stats: { kills: number, deaths: number, points: number, [string]: number },
 	matchStats: { kills: number, deaths: number, points: number, [string]: number },
+	quest: { [string]: number }?,
 }
 
 export type TeamStateData = {
@@ -50,6 +51,7 @@ export type TeleportMetadata = {
 	queueType: number,
 	mapName: string,
 	timestamp: number,
+	expectedPlayersPerTeam: number?,
 	loadouts: { [string]: Loadout },
 	parties: { [string]: TeleportPartyEntry },
 	matchId: string,
@@ -63,6 +65,7 @@ export type PlayerDelta = {
 	actionId: string?,
 	kills: number?,
 	matchesPlayed: number?,
+	quest: { [string]: number }?,
 }
 
 export type GameToLobbyPayload = {

@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
+local GlobalConfigs = require(ReplicatedStorage.GlobalConfigs)
 local Configs = require(ReplicatedStorage.Round.Configs)
 local SharedPowerConfigs = require(ReplicatedStorage.Power.Configs)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
@@ -21,6 +22,30 @@ local PowerService = require(ServerScriptService.PowerService)
 
 local RoundSystem = {}
 RoundSystem.__index = RoundSystem
+
+local function setPowerRoundEligible(player: Player, eligible: boolean)
+	player:SetAttribute(SharedPowerConfigs.ROUND_ELIGIBLE_ATTRIBUTE, eligible)
+	player:SetAttribute(Configs.COMBAT_ELIGIBLE_ATTRIBUTE, eligible)
+end
+
+local ROUND_QUEST_ATTRIBUTES = {
+	Configs.QUEST_ROUND_PARTICIPATED_ATTRIBUTE,
+	Configs.QUEST_USED_GUN_ATTRIBUTE,
+	Configs.QUEST_USED_KNIFE_ATTRIBUTE,
+	Configs.QUEST_USED_POWER_ATTRIBUTE,
+}
+
+local function copyRoundQuestAttributes(fromPlayer: Player?, toPlayer: Player)
+	if not fromPlayer or fromPlayer == toPlayer then
+		return
+	end
+	for _, attributeName in ROUND_QUEST_ATTRIBUTES do
+		local value = fromPlayer:GetAttribute(attributeName)
+		if value ~= nil then
+			toPlayer:SetAttribute(attributeName, value)
+		end
+	end
+end
 
 local function isTeamFullyDisconnected(teamSnapshot): boolean
 	if not teamSnapshot then
@@ -55,6 +80,36 @@ local function normalizeTicketLoadout(ticket: any)
 	return ticket.loadout
 end
 
+local TEAM_ROUND_REQ_BY_QUEUE_TYPE = {
+	[1] = "OneVsOneRoundsPlayed",
+	[2] = "TwoVsTwoRoundsPlayed",
+	[3] = "ThreeVsThreeRoundsPlayed",
+	[4] = "FourVsFourRoundsPlayed",
+	[5] = "FiveVsFiveRoundsPlayed",
+	[6] = "SixVsSixRoundsPlayed",
+}
+
+local function addQuestProgress(playerState, reqType: string?, amount: number)
+	if not reqType then return end
+	if type(playerState.quest) ~= "table" then
+		playerState.quest = {}
+	end
+	playerState.quest[reqType] = (playerState.quest[reqType] or 0) + amount
+end
+
+local function isDefaultWeaponLoadout(loadout): boolean
+	return type(loadout) == "table"
+		and loadout.knifeName == Configs.DEFAULT_LOADOUT.knifeName
+		and loadout.gunName == Configs.DEFAULT_LOADOUT.gunName
+end
+
+local function getExpectedTeamCounts(metadata: TeleportMetadata): (number, number)
+	if type((metadata :: any).expectedPlayersPerTeam) == "number" then
+		return (metadata :: any).expectedPlayersPerTeam, (metadata :: any).expectedPlayersPerTeam
+	end
+	return #metadata.teamOnePlayers, #metadata.teamTwoPlayers
+end
+
 function RoundSystem.new(metadata: TeleportMetadata)
 	TeleportMetadataService.Initialize(metadata)
 
@@ -62,7 +117,9 @@ function RoundSystem.new(metadata: TeleportMetadata)
 
 	self._metadata = metadata
 	self._positioningDoneEvent = Instance.new("BindableEvent")
-	self._expectedPlayerCount = #metadata.teamOnePlayers + #metadata.teamTwoPlayers
+	local expectedTeamOne, expectedTeamTwo = getExpectedTeamCounts(metadata)
+	self._expectedTeamCounts = { [1] = expectedTeamOne, [2] = expectedTeamTwo }
+	self._expectedPlayerCount = expectedTeamOne + expectedTeamTwo
 	self._pendingPlayers = {} :: { Player }
 	self._roundRoster = {} :: { Player }
 	self._stateMachine = RoundStateMachine.new()
@@ -76,6 +133,8 @@ function RoundSystem.new(metadata: TeleportMetadata)
 	self._disconnectedStats = {} :: { [string]: any }
 	self._listeners = {} :: { [string]: { (...any) -> () } }
 	self._roundToken = 0
+	self._matchStartedAt = os.time()
+	self._lastQuestRecordedRound = 0
 	self._broadcastRemote = NetworkRouter:CreateRemoteEvent("RoundUpdate")
 	self._snapshotRemote = NetworkRouter:CreateRemoteFunction("RoundGetSnapshot")
 	self._waitTask = nil
@@ -126,7 +185,7 @@ function RoundSystem:RegisterPlayer(player: Player)
 	RoundOrchestrator.SetPowerRoundEligible(player, false)
 	table.insert(self._pendingPlayers, player)
 	self:_broadcastUpdate()
-	if #self._pendingPlayers >= self._expectedPlayerCount then
+	if not GlobalConfigs.TEST_MODE and #self._pendingPlayers >= self._expectedPlayerCount and self:CanStartMatch() then
 		self:_transition(Configs.GAME_STATES.AssigningTeams)
 	end
 end
@@ -158,10 +217,10 @@ function RoundSystem:UnregisterPlayer(player: Player)
 
 	if state == Configs.GAME_STATES.RoundActive then
 		self:_fireEvent("PlayerStatusChanged", player, Configs.PLAYER_STATUSES.Disconnected)
-		self:_broadcastUpdate()
+	end
+	self:_broadcastUpdate()
+	if state == Configs.GAME_STATES.RoundActive and not self:IsMatchEnded() then
 		self:_checkWinCondition()
-	else
-		self:_broadcastUpdate()
 	end
 end
 
@@ -170,7 +229,10 @@ function RoundSystem:OnPlayerDied(player: Player)
 		warn(`[RoundSystem] OnPlayerDied called outside RoundActive for {player.Name}`)
 		return
 	end
-	RoundOrchestrator.SetPowerRoundEligible(player, false)
+	if self._positioningPlayers then
+		return
+	end
+	setPowerRoundEligible(player, false)
 	local playerState = self._playerStates[player]
 	if not playerState then
 		warn(`[RoundSystem] OnPlayerDied: no state found for {player.Name}`)
@@ -235,6 +297,76 @@ function RoundSystem:MarkMatchEnded()
 	ReconnectService.MarkMatchEnded(self._metadata)
 end
 
+function RoundSystem:CanStartMatch(): boolean
+	local counts = { [1] = 0, [2] = 0 }
+	for _, player in self._pendingPlayers do
+		local team = TeleportMetadataService.GetTeamForUserId(player.UserId)
+		if team ~= 1 and team ~= 2 then
+			team = if counts[1] <= counts[2] then 1 else 2
+			TeleportMetadataService.SetTeam(player.UserId, team)
+		end
+		counts[team] += 1
+	end
+	return counts[1] >= math.max(1, self._expectedTeamCounts[1] or 0)
+		and counts[2] >= math.max(1, self._expectedTeamCounts[2] or 0)
+		and #self._pendingPlayers >= self._expectedPlayerCount
+end
+
+function RoundSystem:_recordRoundQuestProgress(winningTeam: number?)
+	if self._lastQuestRecordedRound == self._roundNumber then
+		return
+	end
+	self._lastQuestRecordedRound = self._roundNumber
+
+	local teamRoundReq = TEAM_ROUND_REQ_BY_QUEUE_TYPE[self._metadata.queueType]
+	for _, player in self._roundRoster do
+		local playerState = self._playerStates[player]
+		if not playerState then continue end
+		if player:GetAttribute(Configs.QUEST_ROUND_PARTICIPATED_ATTRIBUTE) ~= true then continue end
+
+		addQuestProgress(playerState, "RoundsPlayed", 1)
+		addQuestProgress(playerState, teamRoundReq, 1)
+
+		if playerState:GetStat("kills") >= 5 then
+			addQuestProgress(playerState, "FiveKillRounds", 1)
+		end
+		if player:GetAttribute(Configs.QUEST_USED_POWER_ATTRIBUTE) ~= true then
+			addQuestProgress(playerState, "NoPowerupRounds", 1)
+		end
+
+		local wonRound = winningTeam ~= nil and playerState.team == winningTeam
+		if wonRound then
+			playerState.questWinStreak = (playerState.questWinStreak or 0) + 1
+			addQuestProgress(playerState, "RoundWins", 1)
+			if playerState.questWinStreak == 3 then
+				addQuestProgress(playerState, "ThreeWinStreaks", 1)
+			end
+			if playerState:GetStat("deaths") == 0 then
+				addQuestProgress(playerState, "NoDeathWins", 1)
+			end
+
+			local loadout = TeleportMetadataService.GetLoadout(player.UserId)
+			if isDefaultWeaponLoadout(loadout) then
+				addQuestProgress(playerState, "DefaultLoadoutWins", 1)
+			end
+
+			local usedGun = player:GetAttribute(Configs.QUEST_USED_GUN_ATTRIBUTE) == true
+			local usedKnife = player:GetAttribute(Configs.QUEST_USED_KNIFE_ATTRIBUTE) == true
+			if usedKnife and not usedGun then
+				addQuestProgress(playerState, "KnifeOnlyWins", 1)
+			elseif usedGun and not usedKnife then
+				addQuestProgress(playerState, "GunOnlyWins", 1)
+			end
+		else
+			playerState.questWinStreak = 0
+		end
+
+		if playerState.status == Configs.PLAYER_STATUSES.Disconnected then
+			self._disconnectedStats[tostring(player.UserId)] = playerState:Serialize()
+		end
+	end
+end
+
 function RoundSystem:RegisterReconnect(player: Player, ticket: any): (boolean, string?)
 	if self:IsMatchEnded() then
 		return false, "match-ended"
@@ -250,6 +382,7 @@ function RoundSystem:RegisterReconnect(player: Player, ticket: any): (boolean, s
 
 	local oldPlayer = self._playersByUserId[userId] or playerState.player
 	if oldPlayer and oldPlayer ~= player then
+		copyRoundQuestAttributes(oldPlayer, player)
 		self._playerStates[oldPlayer] = nil
 	end
 
@@ -429,8 +562,13 @@ function RoundSystem:_checkWinCondition()
 		self._roundTimerTask = nil
 	end
 
+	self:_recordRoundQuestProgress(winningTeam)
 	table.insert(self._roundResults, { winningTeam = winningTeam, stats = {} })
 	self:_fireEvent("RoundOver", winningTeam, self._roundNumber)
+	if teamOneFullyDisconnected or teamTwoFullyDisconnected then
+		self:_transition(Configs.GAME_STATES.GameOver)
+		return
+	end
 	local gameOver = WinConditionEvaluator.isGameOver(self._roundResults, self._roundNumber)
 	if gameOver then
 		self:_transition(Configs.GAME_STATES.GameOver)

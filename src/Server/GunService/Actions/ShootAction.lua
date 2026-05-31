@@ -45,30 +45,30 @@ function ShootAction.serverExecute(
 	_playerState: any,
 	directionVector: Vector3?,
 	restOrigin: Vector3?
-)
+): boolean
 	if not directionVector then
 		warn(`[ShootAction] missing directionVector for {player.Name}`)
-		return
+		return false
 	end
 	if not restOrigin then
 		warn(`[ShootAction] missing restOrigin for {player.Name}`)
-		return
+		return false
 	end
 
 	local character = player.Character
 	if not character then
 		warn(`[ShootAction] no character for {player.Name}`)
-		return
+		return false
 	end
 	local rootPart = character:FindFirstChild("HumanoidRootPart")
 	if not rootPart then
 		warn(`[ShootAction] no HumanoidRootPart for {player.Name}`)
-		return
+		return false
 	end
 
 	if (restOrigin - rootPart.Position).Magnitude > AnimationsConfigs.MaxRestOriginDistance then
 		warn(`[ShootAction] restOrigin out of range for {player.Name}`)
-		return
+		return false
 	end
 
 	local direction = directionVector.Unit
@@ -111,6 +111,7 @@ function ShootAction.serverExecute(
 			end
 		end
 	end
+	return true
 end
 
 function ShootAction.serverCleanup(_player: Player, _playerState: any)

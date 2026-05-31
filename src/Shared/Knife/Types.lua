@@ -12,7 +12,7 @@ export type KnifeActionConfig = {
 
 
 export type ServerKnifeAction = KnifeActionConfig & {
-	serverExecute: (player: Player, playerState: any, directionVector: Vector3?) -> (),
+	serverExecute: (player: Player, playerState: any, directionVector: Vector3?, restOrigin: Vector3?, spawnCFrame: CFrame?) -> boolean,
 	serverCleanup: (player: Player, playerState: any) -> (),
 }
 
@@ -24,6 +24,8 @@ export type ClientKnifeAction = KnifeActionConfig & {
 export type KnifeActionPayload = {
 	desiredAction: string,
 	directionVector: Vector3?,
+	restOrigin: Vector3?,
+	spawnCFrame: CFrame?,
 	sequenceId: number,
 }
 

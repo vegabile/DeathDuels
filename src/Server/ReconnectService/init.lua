@@ -145,7 +145,7 @@ local function isMatchRecordActive(matchRecord: any, ticket: any): (boolean, str
 	return true, nil
 end
 
-local function markTicketConsumed(ticket: any, userId: number)
+local function markTicketConsumed(ticket: any, userId: number): boolean
 	local currentTime = now()
 	local consumed = {}
 	for key, value in ticket do
@@ -154,7 +154,7 @@ local function markTicketConsumed(ticket: any, userId: number)
 	consumed.status = ReconnectConfig.TICKET_STATUS.Consumed
 	consumed.expiresAt = currentTime
 	consumed.updatedAt = currentTime
-	setValue(
+	return setValue(
 		ReconnectConfig.ticketKey(userId),
 		consumed,
 		ReconnectConfig.MATCH_ENDED_TICKET_TTL_SECONDS
@@ -261,8 +261,14 @@ function ReconnectService.ValidateReconnect(player: Player, reconnectData: any, 
 		return false, matchReason
 	end
 
-	markTicketConsumed(ticket, player.UserId)
 	return true, ticket
+end
+
+function ReconnectService.ConsumeReconnectTicket(player: Player, ticket: any): boolean
+	if not player or type(ticket) ~= "table" then
+		return false
+	end
+	return markTicketConsumed(ticket, player.UserId)
 end
 
 function ReconnectService.ReturnPlayerToLobby(player: Player, reason: string?): boolean

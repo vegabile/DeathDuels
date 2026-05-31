@@ -188,6 +188,7 @@ function PowerService:Activate(powerName: string, payload: any): PowerResult
 	self._lastAttempt[requested.name] = now
 
 	requested:Execute(self.player, payload)
+	self.player:SetAttribute(RoundConfigs.QUEST_USED_POWER_ATTRIBUTE, true)
 
 	return {
 		success = true,
