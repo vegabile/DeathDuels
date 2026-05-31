@@ -1,71 +1,41 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Engineering constraints (non-negotiable)
+- Make the SMALLEST change that satisfies the requirement. Minimal diff, always.
+- No new abstractions, layers, interfaces, config options, or generality unless
+  I explicitly ask. YAGNI is the default.
+- Do not refactor, rename, or touch code outside the specific change requested.
+- Do not add speculative error handling, logging, or "robustness" I didn't ask for.
+- Prefer fewer lines. A 3-line fix beats a 30-line "proper" one.
+- If the diff comes out larger than the obvious hand-written fix, that's a
+  failure — stop and reconsider, don't ship the sprawl.
+- NEVER "harden" ANYTHING, UNLESS I tell you to. NEVER even consider it.
 
-## Dev Commands
+## Plan before executing
+- For any multi-step, multi-file, or multi-agent task: present a short plan and
+  WAIT for my approval before writing code or spawning anything.
+- Never spin up subagents or start a workflow without showing the plan first.
+- If a change is structural or has wide blast radius, surface the design choice
+  in ONE sentence and wait. Do not implement it yet.
 
-```bash
-argon serve
-argon build
-wally install
-```
+## Autonomy (only AFTER the plan is approved)
+- Once a plan is approved, work continuously to completion. Do NOT stop mid-task
+  to ask "what should I do here?"
+- On routine implementation choices, pick the option consistent with the
+  existing code, proceed, and note the assumption in your final summary.
+- Only interrupt me for: (a) destructive or irreversible actions, or (b) a
+  genuine architectural fork not already covered by the approved plan.
+- Never stop for permission on reversible, in-branch changes.
 
-Execution for testing/debugging happens via `mcp__robloxstudio__execute_luau` in the edit environment — never start a playtest.
+## Verification is the bar
+- Behavior is defined by tests, not by your judgment that it "looks right."
+- Where a test can pin the intended behavior, write or confirm it BEFORE the fix.
+- Do not write tests that merely rubber-stamp whatever you happened to build.
+- "Done" means: typecheck + relevant tests pass, and you have shown me the diff.
 
-Never chain Bash commands with `&&` or `;` when each is individually allowed. Use separate parallel Bash tool calls instead.
-
-## Project Mapping (Rojo/Argon)
-
-```
-src/Server   → ServerScriptService
-src/Client   → StarterPlayer/StarterPlayerScripts
-src/Shared   → ReplicatedStorage
-```
-
-## Architecture
-
-### Service Pattern
-
-Every service follows the same shape:
-
-- `init.lua` — public API and state, no Roblox event wiring
-- `executor.*.lua` — wires `PlayerAdded`, `PlayerRemoving`, and other Roblox events; calls into `init.lua`
-- `Types.lua` — exported type definitions for that service
-- `Configs.lua` — all magic values and constants; nothing is scattered
-
-This keeps logic testable and decoupled from the Roblox lifecycle.
-
-### Weapon System (Knife / Gun)
-
-Client-authoritative prediction with server correction:
-
-1. Client (`KnifeController` / `GunController`) applies the action locally via its state machine and fires `KnifeAction_{UserId}` / `GunAction_{UserId}` with a `sequenceId`.
-2. Server (`KnifeService` / `GunService`) validates the payload (`PayloadValidator`), checks rate limits and state, then executes the action.
-3. Server sends back either `CooldownReset` (accepted) or `StateOverride` (rejected — rolls back client state). Stale overrides are discarded by comparing `sequenceId`.
-
-Each weapon has a mirrored `Shared/` module containing its state machine, payload validator, utility functions, types, and configs. Server and client both share these.
-
-### ActionRegistry
-
-`ActionRegistryFactory` (`src/Shared/ActionRegistryFactory.lua`) produces a registry from an action list. Each action has a `name`, `cooldown`, `clientExecute`, and `serverExecute`. Server and client each have their own `ActionRegistry.lua` that builds from their respective action modules.
-
-### NetworkRouter
-
-Singleton (`src/Shared/NetworkRouter`) that wraps RemoteEvents/RemoteFunctions. Server creates remotes; both sides call `NetworkRouter:Get(name)` to retrieve them. Per-player remotes are named `KnifeAction_{UserId}` and `GunAction_{UserId}` and are created/destroyed on `PlayerAdded`/`PlayerRemoving`.
-
-### RoundService
-
-Drives the match lifecycle on private servers. Reads teleport metadata from `player:GetJoinData().TeleportData` on `PlayerAdded`, validates it at the boundary (`TeleportDataValidator`), then populates `TeleportMetadataService` (a singleton). State transitions are enforced by `RoundStateMachine` against `LEGAL_TRANSITIONS` in `Shared/Round/Configs`. Supporting modules are pure data containers:
-
-- `PlayerState` — per-player status, stats, lock/unlock
-- `TeamState` — computes alive/dead/disconnected counts via `Recalculate()`
-- `WinConditionEvaluator` — stateless functions; takes snapshots, returns `(isOver, winningTeam?)`
-- `TeleportUtility` — returns players to lobby with exponential-backoff retry
-
-### DataService
-
-Wraps ProfileService (Wally dep). Player data schema: `{ Coin, Knives, Guns }`. All mutations go through DataService methods — never write to `profile.Data` directly elsewhere.
-
-### EventBus
-
-`ClientEventBus` and `ServerEventBus` are simple signal buses for intra-client and intra-server decoupling respectively. They do not cross the client/server boundary.
+## Git workflow
+- Always work on a separate branch. Never commit directly to master/main.
+- Split work into commits grouped by logical task — one coherent change per commit.
+- Open a PR when the work is done. A PR is a group of related commits.
+- Keep PRs under ~500 lines of diff. If the work exceeds that, split it across
+  multiple PRs, each independently reviewable.
