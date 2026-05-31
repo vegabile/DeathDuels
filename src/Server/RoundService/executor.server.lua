@@ -33,6 +33,11 @@ local function buildTemplateTeleportData()
 	}
 end
 
+local function kickForInvalidMatchData(player: Player, reason: any)
+	local detail = if type(reason) == "string" and reason ~= "" then reason else "invalid payload"
+	player:Kick(`Invalid match data: {detail}`)
+end
+
 local function setupPlayer(player: Player)
 	if handled[player] then
 		warn(`[RoundService.executor] setup skipped for {player.Name}: already handled`)
@@ -82,7 +87,7 @@ local function setupPlayer(player: Player)
 		local ok, err, sanitized = TeleportDataValidator.validate(rawData)
 		if not ok then
 			warn(`[Round] Invalid teleport data for {player.Name}: {err}`)
-			player:Kick(Configs.KICK_REASONS.InvalidTeleportData)
+			kickForInvalidMatchData(player, err)
 			return
 		end
 		teleportData = sanitized
@@ -100,19 +105,19 @@ local function setupPlayer(player: Player)
 	elseif not GlobalConfigs.TEST_MODE then
 		if teleportData.matchId ~= roundSystem:GetMatchId() then
 			warn(`[Round] Join rejected for {player.Name}: match id mismatch`)
-			player:Kick(Configs.KICK_REASONS.InvalidTeleportData)
+			kickForInvalidMatchData(player, "match id mismatch")
 			return
 		end
 		if not roundSystem:ContainsExpectedUserId(player.UserId) then
 			warn(`[Round] Join rejected for {player.Name}: not in original roster`)
-			player:Kick(Configs.KICK_REASONS.InvalidTeleportData)
+			kickForInvalidMatchData(player, "player not in original roster")
 			return
 		end
 	end
 
 	if roundSystem:GetState() ~= Configs.GAME_STATES.WaitingForPlayers then
 		warn(`[Round] Join rejected for {player.Name}: match already started`)
-		player:Kick(Configs.KICK_REASONS.InvalidTeleportData)
+		kickForInvalidMatchData(player, "match already started")
 		return
 	end
 

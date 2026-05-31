@@ -371,8 +371,9 @@ local function enterRoundActive(system)
 	for teamNum, players in system._teamPlayers do
 		local spawns = spawnGroups[teamNum]
 		if not spawns or #spawns == 0 then
-			warn(`[Round] No spawn parts found for team {teamNum}`)
-			continue
+			warn(`[Round] No spawn parts found for team {teamNum} — aborting match`)
+			system:_transition(Configs.GAME_STATES.Aborted)
+			return
 		end
 		for i, player in players do
 			resetQuestRoundAttributes(player)
