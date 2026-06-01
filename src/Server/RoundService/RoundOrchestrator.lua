@@ -43,6 +43,14 @@ end
 
 local CHARACTER_ADDED_TIMEOUT = 3
 
+-- Mirrors the semantics of isTeamFullyDisconnected in init.lua so the pre-round
+-- abort gate detects a walkover identically to _checkWinCondition.
+local function isTeamFullyDisconnected(snapshot): boolean
+	return snapshot ~= nil
+		and (snapshot.originalPlayerCount or 0) > 0
+		and snapshot.disconnectedPlayers >= snapshot.originalPlayerCount
+end
+
 local function getSpawnAssignment(system, roundNumber: number?)
 	local spawnParts = system._spawnPartsByColor
 	local red = spawnParts and spawnParts.red
@@ -383,6 +391,20 @@ local function enterPreparingPlayers(system)
 	end
 
 	if positionedByTeam[1] == 0 or positionedByTeam[2] == 0 then
+		-- A whole team can leave during the pre-round load/position window. That is a
+		-- walkover win for the surviving team, not an abort — route it through the
+		-- canonical win path (full-disconnect -> GameOver winner) used in RoundActive.
+		-- Only invoke _checkWinCondition when a real full disconnect exists: during
+		-- PreparingPlayers everyone is Positioning (0 alive), so its general
+		-- isRoundOver path would otherwise misfire a tie.
+		local t1 = system._teamStates[1] and system._teamStates[1]:Recalculate()
+		local t2 = system._teamStates[2] and system._teamStates[2]:Recalculate()
+		if isTeamFullyDisconnected(t1) or isTeamFullyDisconnected(t2) then
+			system:_checkWinCondition()
+			if system._stateMachine:GetState() ~= Configs.GAME_STATES.PreparingPlayers then
+				return
+			end
+		end
 		warn(`[Round] Aborting before RoundActive; positioned players by team: team1={positionedByTeam[1]}, team2={positionedByTeam[2]}`)
 		system:_transition(Configs.GAME_STATES.Aborted)
 		return
