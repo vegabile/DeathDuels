@@ -91,7 +91,7 @@ return {
 		AssigningTeams = { "PreparingPlayers", "GameOver", "Aborted" },
 		PreparingPlayers = { "RoundActive", "GameOver", "Aborted" },
 		RoundActive = { "RoundIntermission", "GameOver", "Aborted" },
-		RoundIntermission = { "RoundActive", "GameOver", "Aborted" },
+		RoundIntermission = { "PreparingPlayers", "GameOver", "Aborted" },
 		GameOver = { "TeleportingOut" },
 		TeleportingOut = {},
 		Aborted = { "TeleportingOut" },
