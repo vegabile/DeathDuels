@@ -1,23 +1,20 @@
 -- MapLoader (client)
 --
--- Ensures the local player's copy of the match map is fully present before the
--- server releases them into RoundActive. Two things have to happen on the client:
+-- Ensures the area around the local player's combat spawn is fully streamed in
+-- before the server releases them into RoundActive, so nobody is unfrozen into a
+-- half-loaded map. This assumes StreamingEnabled is ON: the client never holds
+-- the whole map, so we stream the spawn region with RequestStreamAroundAsync
+-- (which yields until those parts are present) rather than counting descendants.
 --
---   1. Replication — the map model the server parented to workspace has to stream
---      down part-by-part. PreloadAsync does NOT do this; it only loads the assets
---      (textures/meshes/sounds) referenced by instances that already exist. So we
---      first wait for the model's descendant count to reach the server-reported
---      total (falling back to "the count stopped growing" if no total is known).
---   2. Asset preloading — once the instances exist, ContentProvider:PreloadAsync
---      yields until their textures/meshes/sounds are decoded and ready.
+-- We key off the local character: the server positions AND anchors it at the
+-- combat spawn during PreparingPlayers (RoundOrchestrator.exitSkippedOrPosition,
+-- hrp.Anchored = true), so an anchored root is the deterministic "I'm at my
+-- spawn" signal — no server-sent spawn coordinates needed.
 --
--- When both are done (or we hit a hard timeout) we fire MAP_READY_REMOTE so the
--- server records the player's "MapReady" readiness fact.
---
--- NOTE: this assumes the map replicates in full (StreamingEnabled off, which is
--- the case here). With StreamingEnabled the descendant count would not be a
--- reliable signal and you'd want RequestStreamAroundAsync around the spawn instead.
+-- Gating is first-round-only: we report MapReady once per client (the server
+-- records the fact and never clears it), matching READINESS_GRACE_FIRST_ROUND.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ContentProvider = game:GetService("ContentProvider")
 
@@ -26,71 +23,72 @@ local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 
 local MapLoader = {}
 
-local readyMap: string? = nil
-local loadingMap: string? = nil
+local localPlayer = Players.LocalPlayer
+local started = false
 
--- Waits until the map looks fully replicated. Returns true if we're confident it
--- is, false if we bailed on the deadline before reaching the expected count.
-local function waitForReplication(model: Instance, expectedCount: number?, deadline: number): boolean
-	local lastCount = -1
-	local stableFrames = 0
+-- Waits (until the deadline) for our character's root part to be anchored, which
+-- the server only does once it has placed us at our combat spawn. Falls back to
+-- whatever root we currently have so we can still stream best-effort.
+local function waitForAnchoredRoot(deadline: number): BasePart?
 	while os.clock() < deadline do
-		local count = #model:GetDescendants()
-		if expectedCount and count >= expectedCount then
-			return true
+		local character = localPlayer.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root and root:IsA("BasePart") and root.Anchored then
+			return root
 		end
-		if count == lastCount then
-			stableFrames += 1
-			-- No new instances are arriving. If we have no count target, treat
-			-- the map as fully replicated; if we do have one and still haven't
-			-- reached it, keep waiting until the deadline.
-			if stableFrames >= Configs.MAP_STABLE_FRAMES and not expectedCount then
-				return true
-			end
-		else
-			stableFrames = 0
-			lastCount = count
-		end
-		task.wait(Configs.MAP_POLL_INTERVAL)
+		task.wait()
 	end
-	return false
+	local character = localPlayer.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		return root
+	end
+	return nil
 end
 
--- Idempotent per map name: safe to call on every round snapshot.
-function MapLoader.ensureLoaded(mapName: string?, expectedPartCount: number?)
-	if type(mapName) ~= "string" or mapName == "" then
+-- Idempotent: safe to call on every PreparingPlayers snapshot; only acts once.
+function MapLoader.ensureReady(mapName: string?)
+	if started then
 		return
 	end
-	if readyMap == mapName or loadingMap == mapName then
-		return
-	end
-	loadingMap = mapName
+	started = true
 
 	task.spawn(function()
+		local fired = false
+		local function fireReady()
+			if fired then
+				return
+			end
+			fired = true
+			NetworkRouter:Call(Configs.MAP_READY_REMOTE, mapName)
+		end
+
+		-- Hard cap: report ready on an independent thread even if streaming or
+		-- asset preload below stalls, so we never miss the server's readiness
+		-- grace and get wrongly Skipped.
+		task.delay(Configs.MAP_LOAD_TIMEOUT, fireReady)
+
 		local deadline = os.clock() + Configs.MAP_LOAD_TIMEOUT
-		local model = workspace:FindFirstChild(mapName)
-		if not model then
-			model = workspace:WaitForChild(mapName, math.max(0, deadline - os.clock()))
-		end
-
-		local fullyReplicated = false
-		if model then
-			fullyReplicated = waitForReplication(model, expectedPartCount, deadline)
-			-- Yields until the map's textures/meshes/sounds are loaded.
+		local root = waitForAnchoredRoot(deadline)
+		if root then
+			-- Stream the world around our spawn and yield until it's present.
+			-- The timeout arg bounds the yield; pcall guards the case where
+			-- StreamingEnabled is off (call no-ops / errors) so we never hang.
 			pcall(function()
-				ContentProvider:PreloadAsync({ model })
+				workspace:RequestStreamAroundAsync(root.Position, math.max(0, deadline - os.clock()))
 			end)
+			-- Decode the streamed-in map assets (textures/meshes/sounds).
+			local mapModel = if type(mapName) == "string" then workspace:FindFirstChild(mapName) else nil
+			if mapModel then
+				pcall(function()
+					ContentProvider:PreloadAsync({ mapModel })
+				end)
+			end
+		else
+			warn("[MapLoader] no character root to stream around; reporting ready best-effort")
 		end
 
-		if not model then
-			warn(`[MapLoader] map "{mapName}" never replicated within {Configs.MAP_LOAD_TIMEOUT}s; reporting ready best-effort`)
-		elseif not fullyReplicated then
-			warn(`[MapLoader] map "{mapName}" not confirmed fully replicated before timeout; reporting ready best-effort`)
-		end
-
-		readyMap = mapName
-		loadingMap = nil
-		NetworkRouter:Call(Configs.MAP_READY_REMOTE, mapName)
+		fireReady()
 	end)
 end
 

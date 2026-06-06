@@ -141,7 +141,6 @@ function RoundSystem.new(metadata: TeleportMetadata)
 	self._waitTask = nil
 	self._roundTimerTask = nil
 	self._mapModel = nil
-	self._mapPartCount = nil
 	self._destroyed = false
 	self._positioningPlayers = false
 	self._matchEnded = false
@@ -486,7 +485,6 @@ function RoundSystem:GetSnapshot()
 		playerStates = serializedPlayers,
 		teamStates = teamSnapshots,
 		mapName = self._metadata and self._metadata.mapName,
-		mapPartCount = self._mapPartCount,
 	}
 end
 

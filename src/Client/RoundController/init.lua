@@ -10,24 +10,17 @@ local RoundController = {}
 local initialized = false
 local lastRoundState: string? = nil
 
--- States in which there is no live map to preload (no match running yet, or the
--- match has ended and players are leaving).
-local NON_MATCH_STATES = {
-	[Configs.GAME_STATES.WaitingForPlayers] = true,
-	[Configs.GAME_STATES.TeleportingOut] = true,
-	[Configs.GAME_STATES.Aborted] = true,
-}
-
 local function publishSnapshot(snapshot: any)
 	ClientEventBus:Fire("RoundUpdate", snapshot)
 	if type(snapshot) ~= "table" or type(snapshot.state) ~= "string" then
 		return
 	end
 
-	-- Once a match is underway, make sure the map is fully loaded locally and
-	-- report readiness to the server. ensureLoaded is idempotent per map name.
-	if type(snapshot.mapName) == "string" and not NON_MATCH_STATES[snapshot.state] then
-		MapLoader.ensureLoaded(snapshot.mapName, snapshot.mapPartCount)
+	-- While the server is positioning us for the round, make sure the area
+	-- around our spawn is fully streamed in before we report readiness. The
+	-- server gates RoundActive on this. ensureReady only acts once per client.
+	if snapshot.state == Configs.GAME_STATES.PreparingPlayers and type(snapshot.mapName) == "string" then
+		MapLoader.ensureReady(snapshot.mapName)
 	end
 
 	if snapshot.state == lastRoundState then
