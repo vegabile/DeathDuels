@@ -35,11 +35,20 @@ return {
 	POSITIONING_OUTER_TIMEOUT = 6,
 	DEFAULT_WALK_SPEED = 16,
 
+	-- Client -> server signal that a player's local copy of the match map has
+	-- fully replicated and had its assets preloaded. Gates entry into RoundActive
+	-- so nobody is unfrozen into a half-loaded map.
+	MAP_READY_REMOTE = "RoundMapReady",
+	MAP_LOAD_TIMEOUT = 15, -- client: hard cap (s) waiting for replication + preload before reporting ready best-effort
+	MAP_STABLE_FRAMES = 5, -- client: consecutive unchanged descendant counts treated as "fully replicated"
+	MAP_POLL_INTERVAL = 0.1, -- client: seconds between replication checks
+
 	REQUIRED_FACTS = {
 		"ProfileLoaded",
 		"LoadoutResolved",
 		"CharacterLoaded",
 		"CharacterUsable",
+		"MapReady",
 	},
 
 

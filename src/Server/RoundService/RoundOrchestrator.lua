@@ -259,6 +259,12 @@ local function enterAssigningTeams(system)
 		blue = blueSpawns,
 	}
 
+	-- Snapshot how many instances the map has so clients can tell when their
+	-- local copy has fully replicated before reporting MapReady. Broadcast now
+	-- (rather than waiting on the next state transition) so loading starts ASAP.
+	system._mapPartCount = #system._mapModel:GetDescendants()
+	system:_broadcastUpdate()
+
 	system._teamPlayers = { [1] = {}, [2] = {} }
 
 	for _, player in system._pendingPlayers do
