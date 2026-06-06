@@ -11,7 +11,7 @@ What a knife template in `ReplicatedStorage.KnifeModels` must look like to work 
 ## Tool
 
 | Property | Required value | Why |
-| --- | --- | --- |
+| 
 | `ClassName` | `Tool` | `WeaponModelValidator.validateKnife` rejects anything else |
 | `Name` | unique within `KnifeModels` | used as the `knifeName` key in loadouts |
 | `RequiresHandle` | `true` (default) | the auto-grip Motor6D depends on a child named `Handle` |
@@ -23,7 +23,7 @@ The `IsKnife` attribute is **not** set on the template — it's applied to each 
 A direct child of the `Tool`, named exactly `Handle`.
 
 | Property | Required value | Why |
-| --- | --- | --- |
+| 
 | `ClassName` | `BasePart` (any subclass: `Part`, `MeshPart`, `UnionOperation`) | `validateKnife` requires a `BasePart` Handle |
 | `Name` | `Handle` | Roblox's auto-grip only looks at a child named `Handle` |
 | `Transparency` | `0` | anything >0 makes the knife invisible to everyone |
@@ -32,7 +32,7 @@ A direct child of the `Tool`, named exactly `Handle`.
 The following properties are **normalized at server boot** by `WeaponDistributor.normalizeKnifeHandle` — so the template can be in any reasonable state, but the runtime values will always be:
 
 | Property | Runtime value | Reason |
-| --- | --- | --- |
+| 
 | `Massless` | `true` | prevents the Handle's mass from affecting the wielder's physics |
 | `CanCollide` | `false` | prevents the Handle from colliding with the wielder or world |
 | `Anchored` | `false` | the auto-grip Motor6D must be able to move it |

@@ -5,7 +5,7 @@
 - **Goal**: Load all metadata progressively as players stream into the game, avoiding bottlenecks
 - **Research Base**: Roblox documentation on streaming, TeleportData, PlayerAdded/CharacterAdded patterns
 
----
+
 
 ## Key Insights from Research
 
@@ -25,9 +25,9 @@ The current codebase has **race condition risk**. Correct pattern:
 local function onCharacter(character) ... end
 local function onPlayer(player)
   if player.Character then
-    task.defer(onCharacter, player.Character)  -- Already has character
+    task.defer(onCharacter, player.Character)  
   end
-  player.CharacterAdded:Connect(onCharacter)   -- Future characters
+  player.CharacterAdded:Connect(onCharacter)   
 end
 
 for _, player in game.Players:GetPlayers() do
@@ -37,7 +37,7 @@ game.Players.PlayerAdded:Connect(onPlayer)
 ```
 Using `task.defer()` prevents race conditions during rapid joins.
 
----
+
 
 ## Implementation Plan
 
@@ -55,7 +55,7 @@ Using `task.defer()` prevents race conditions during rapid joins.
 - Return early if data missing (graceful fallback)
 - Use `warn()` for validation failures (never silent fail)
 
----
+
 
 ### Phase 2: Lazy Character Initialization
 **File**: Modify `src/Server/RoundService/` player setup handlers
@@ -79,7 +79,7 @@ PlayerAdded
    └─ Initialize weapons from profile
 ```
 
----
+
 
 ### Phase 3: Optional — Session State via MemoryStore (Future Enhancement)
 **When to use**: If you need to track interim state (buffs, matchmaking status) that expires
@@ -87,11 +87,11 @@ PlayerAdded
 **Pattern** (not required for MVP):
 ```lua
 MemoryStoreService:CreateQueue("QueueName")
--- On teleport out: queue:AddAsync(player.UserId, sessionState, 60*5)
--- On arrive: queue:ReadAsync() to get session data if exists
+
+
 ```
 
----
+
 
 ## Detailed Changes
 
@@ -111,21 +111,21 @@ Exports:
 - If metadata missing or invalid, return `nil` and warn
 - Synchronous (no async waits)
 
----
+
 
 ### 2. Update PlayerAdded Flow (DataService.executor)
 In `src/Server/DataService/executor.server.lua`:
 ```lua
--- After DataService module loads:
+
 local TeleportMetadataService = require(script.Parent.Parent.RoundService.TeleportMetadataService)
 
 game.Players.PlayerAdded:Connect(function(player)
-  -- Parallel: extract metadata immediately
+  
   local joinData = player:GetJoinData()
   if joinData and joinData.TeleportData then
     local isValid, err = TeleportDataValidator.validate(joinData.TeleportData)
     if isValid then
-      -- Store team assignment (fast synchronous operation)
+      
       local metadata = joinData.TeleportData
       TeleportMetadataService.StorePlayerTeam(player, metadata.teamOnePlayers, metadata.teamTwoPlayers)
     else
@@ -133,12 +133,12 @@ game.Players.PlayerAdded:Connect(function(player)
     end
   end
   
-  -- Existing flow continues: profile loads asynchronously
+  
   DataService.OnPlayerAdded(player)
 end)
 ```
 
----
+
 
 ### 3. Create RoundManager (Coordinates Everything)
 **File**: `src/Server/RoundService/RoundManager.lua`
@@ -158,7 +158,7 @@ local function setupPlayerForRound(player)
     return
   end
   
-  -- Wait for character with proper verification
+  
   local char = player.Character
   if char and char.Parent then
     task.defer(onCharacterSpawned, player, char, team)
@@ -169,19 +169,19 @@ local function setupPlayerForRound(player)
   end)
 end
 
--- Handle existing players
+
 for _, player in game.Players:GetPlayers() do
   task.defer(setupPlayerForRound, player)
 end
 game.Players.PlayerAdded:Connect(setupPlayerForRound)
 ```
 
----
+
 
 ### 4. Update TeleportDataValidator
 No changes needed — already validates structure. Just ensure it's imported where needed.
 
----
+
 
 ## Data Flow Diagram
 
@@ -205,7 +205,7 @@ PlayerAdded fires
       └─ If profile ready: initialize weapons [CONCURRENT WITH STREAMING]
 ```
 
----
+
 
 ## Testing Strategy
 
@@ -223,7 +223,7 @@ PlayerAdded fires
    - Measure time from spawn to first weapon available
    - Profile for no frame drops during simultaneous joins
 
----
+
 
 ## Files to Create/Modify
 
@@ -239,14 +239,14 @@ PlayerAdded fires
 - `TeleportDataValidator.lua` — Already correct, just reuse
 - `TeleportUtility.lua` — Already handles the teleport send side
 
----
+
 
 ## Fallback Strategy (If Metadata Unavailable)
 - Assign teams randomly or sequentially
 - Warn but continue (never silently fail)
 - Use default spawn point if no team location configured
 
----
+
 
 ## Success Criteria
 ✅ All metadata accessible within 1 frame of PlayerAdded

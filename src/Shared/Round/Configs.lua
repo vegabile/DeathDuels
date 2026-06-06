@@ -56,7 +56,8 @@ return {
 	},
 
 	LOBBY_PLACE_ID = 92562692732027,
-	-- Studio always logs mock return teleport data; enable this for live diagnostics.
+	--test!
+	
 	DEBUG_RETURN_TELEPORT_DATA = false,
 	RETRY_COUNT = 3,
 	EXPONENTIAL_BACKOFF_BASE = 1,

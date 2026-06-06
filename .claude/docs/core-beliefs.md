@@ -25,7 +25,7 @@ Depend on contracts, not implementations. Inject dependencies through interfaces
 RUTHLESSLY PURGE uncertainty. If its not CRYSTAL CLEAR, YOU EITHER FIX IT OR REMOVE IT
 
 Example:
-function handleButtonPressed(Button : TextButton) -- Passed in
-handleButtonPressed(nil) -- FOR NOW
+function handleButtonPressed(Button : TextButton) 
+handleButtonPressed(nil) 
 
 You will be writing PURE UTILITY UNLESS I have also instructed you to write execution.
