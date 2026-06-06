@@ -60,7 +60,12 @@ function MapLoader.ensureReady(mapName: string?)
 				return
 			end
 			fired = true
-			NetworkRouter:Call(Configs.MAP_READY_REMOTE, mapName)
+			local ok, err = pcall(function()
+				NetworkRouter:Call(Configs.MAP_READY_REMOTE, mapName)
+			end)
+			if not ok then
+				warn(`[MapLoader] failed to send {Configs.MAP_READY_REMOTE}: {err}`)
+			end
 		end
 
 		-- Hard cap: report ready on an independent thread even if streaming or
@@ -71,12 +76,17 @@ function MapLoader.ensureReady(mapName: string?)
 		local deadline = os.clock() + Configs.MAP_LOAD_TIMEOUT
 		local root = waitForAnchoredRoot(deadline)
 		if root then
-			-- Stream the world around our spawn and yield until it's present.
-			-- The timeout arg bounds the yield; pcall guards the case where
-			-- StreamingEnabled is off (call no-ops / errors) so we never hang.
-			pcall(function()
-				workspace:RequestStreamAroundAsync(root.Position, math.max(0, deadline - os.clock()))
+			-- Ask the engine to stream the region around our spawn and yield
+			-- until it's present. RequestStreamAroundAsync lives on Player (NOT
+			-- Workspace). The timeout arg bounds the yield; pcall guards the
+			-- streaming-off case so we never hang, but we surface any failure
+			-- instead of silently swallowing it.
+			local streamOk, streamErr = pcall(function()
+				localPlayer:RequestStreamAroundAsync(root.Position, math.max(0, deadline - os.clock()))
 			end)
+			if not streamOk then
+				warn(`[MapLoader] RequestStreamAroundAsync failed: {streamErr}`)
+			end
 			-- Decode the streamed-in map assets (textures/meshes/sounds).
 			local mapModel = if type(mapName) == "string" then workspace:FindFirstChild(mapName) else nil
 			if mapModel then

@@ -452,18 +452,22 @@ function RoundSystem:RegisterReconnect(player: Player, ticket: any): (boolean, s
 	return true, nil
 end
 
--- A client reports that its local copy of the match map has fully replicated
--- and preloaded. We record the readiness fact so the player can be released
--- into RoundActive (see RoundOrchestrator.enterPreparingPlayers).
+-- A client reports that the area around its combat spawn has streamed in and
+-- preloaded. We record the readiness fact so the player can be released into
+-- RoundActive (see RoundOrchestrator.enterPreparingPlayers).
 function RoundSystem:_onClientMapReady(player: Player, mapName: any)
-	if self._stateMachine:GetState() == Configs.GAME_STATES.WaitingForPlayers then
+	-- Only bank readiness during PreparingPlayers — the window in which the
+	-- client has actually been positioned and anchored at its combat spawn.
+	-- This stops an early or spoofed fire (e.g. during AssigningTeams) from
+	-- satisfying the gate before the spawn region has streamed in.
+	if self._stateMachine:GetState() ~= Configs.GAME_STATES.PreparingPlayers then
 		return
 	end
 	local expectedMap = self._metadata and self._metadata.mapName
-	if expectedMap and type(mapName) == "string" and mapName ~= expectedMap then
+	if expectedMap and mapName ~= expectedMap then
 		return
 	end
-	if not (self._playerStates[player] or table.find(self._pendingPlayers, player)) then
+	if not self._playerStates[player] then
 		return
 	end
 	PlayerReadiness.recordFact(player, "MapReady")
