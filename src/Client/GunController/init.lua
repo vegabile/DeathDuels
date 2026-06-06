@@ -113,7 +113,7 @@ function GunController.onGunEquipped()
 	local character = localPlayer.Character
 	local tool = character and character:FindFirstChildWhichIsA("Tool")
 	if tool then
-		local toolProfile = SharedConfigs.AnimationProfiles[tool.Name]
+		local toolProfile = AnimationProfile.resolveProfile(tool.Name, SharedConfigs.AnimationProfiles)
 		if toolProfile then
 			AnimationController.preloadProfile(character, toolProfile)
 		end
@@ -234,6 +234,16 @@ function GunController.performAction(actionName: string)
 			markerObserverDisconnect = nil,
 			releaseToken = nil,
 		}
+	elseif actionName == "Reload" then
+		pendingAction = {
+			generation = thisGen,
+			sequenceId = thisSeq,
+			actionName = actionName,
+			restOffset = nil,
+			handle = nil,
+			markerObserverDisconnect = nil,
+			releaseToken = nil,
+		}
 	else
 		warn(`[GunController] unsupported actionName={actionName}`)
 		GunStateMachine.resetAction(stateMachine, actionName)
@@ -289,6 +299,20 @@ function GunController.performAction(actionName: string)
 				sequenceId = snapshot.sequenceId,
 			})
 		end)
+	elseif actionName == "Reload" then
+		local reload = AnimationProfile.resolve(tool.Name, profiles, AnimationType.Reload)
+		local animationId = (reload and reload.id) or ""
+
+		pendingAction.handle = AnimationController.play(character, animationId)
+		if animationId ~= "" and pendingAction.handle.isNoop then
+			warn(`[GunController] Reload animation failed to load for {tool.Name}; proceeding without animation`)
+		end
+
+		action.clientExecute(stateMachine, nil)
+		NetworkRouter:Call(remoteName, {
+			desiredAction = actionName,
+			sequenceId = thisSeq,
+		})
 	end
 
 	clearSafetyTimeout()

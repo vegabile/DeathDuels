@@ -23,6 +23,11 @@ return {
 			gamepad = Enum.KeyCode.ButtonR2,
 			touchButton = true,
 		},
+		Reload = {
+			actionName = "GunReload",
+			keyboard = Enum.KeyCode.R,
+			touchButton = false,
+		},
 	},
 
 	PowerBindings = {

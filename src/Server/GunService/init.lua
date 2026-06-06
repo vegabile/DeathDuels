@@ -167,7 +167,7 @@ function GunService._handleActionRequest(player: Player, payload: any)
 	end
 
 	local executed = action.serverExecute(player, state, directionVector, payload.restOrigin)
-	if executed == true then
+	if executed == true and action.name ~= "Reload" then
 		player:SetAttribute(RoundConfigs.QUEST_USED_GUN_ATTRIBUTE, true)
 	end
 

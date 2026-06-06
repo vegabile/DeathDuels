@@ -73,7 +73,9 @@ Gun templates live under `ReplicatedStorage.GunModels`.
 - `Handle` must be a `BasePart`.
 - `ShootPoint` must be an `Attachment`; if absent, a valid `ShootAttachment` is renamed, otherwise a default attachment is created.
 
-Reload/ammo gameplay is intentionally disabled in the stabilization build. The active gun action set is `Shoot` only.
+Weapon animation profile keys and visual reload wiring are documented in `docs/weapon-animation-patterns.md`.
+
+Ammo gameplay is intentionally disabled in the stabilization build. Gun actions are `Shoot` and visual-only `Reload`.
 
 ## Powers
 

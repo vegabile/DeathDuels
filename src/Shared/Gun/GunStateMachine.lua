@@ -17,7 +17,7 @@ function GunStateMachine.setActionActive(state: Types.GunStateMachine, actionNam
 		return false
 	end
 
-	if actionName == "Shoot" then
+	if actionName == "Shoot" or actionName == "Reload" then
 		state.isShooting = true
 	else
 		warn(`[GunStateMachine] Unknown action: {actionName}`)
@@ -28,7 +28,7 @@ function GunStateMachine.setActionActive(state: Types.GunStateMachine, actionNam
 end
 
 function GunStateMachine.resetAction(state: Types.GunStateMachine, actionName: string)
-	if actionName == "Shoot" then
+	if actionName == "Shoot" or actionName == "Reload" then
 		state.isShooting = false
 	else
 		warn(`[GunStateMachine] Unknown action to reset: {actionName}`)

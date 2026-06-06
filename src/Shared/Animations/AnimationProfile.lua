@@ -9,17 +9,26 @@ export type ProfileTable = { [string]: { [string]: ProfileEntry } }
 
 local AnimationProfile = {}
 
-function AnimationProfile.resolve(
-	toolName: string,
-	profiles: ProfileTable?,
-	animationType: string
-): ProfileEntry?
+function AnimationProfile.normalizeKey(toolName: string): string
+	local key = toolName:gsub("[^%w]", "")
+	return string.lower(key)
+end
+
+function AnimationProfile.resolveProfile(toolName: string, profiles: ProfileTable?): { [string]: ProfileEntry }?
 	if type(profiles) ~= "table" then
 		warn(`[AnimationProfile] resolve called with non-table profiles for tool {toolName}`)
 		return nil
 	end
 
-	local toolProfile = profiles[toolName]
+	return profiles[toolName] or profiles[AnimationProfile.normalizeKey(toolName)]
+end
+
+function AnimationProfile.resolve(
+	toolName: string,
+	profiles: ProfileTable?,
+	animationType: string
+): ProfileEntry?
+	local toolProfile = AnimationProfile.resolveProfile(toolName, profiles)
 	if not toolProfile then
 		warn(`[AnimationProfile] no profile for tool {toolName}`)
 		return nil
