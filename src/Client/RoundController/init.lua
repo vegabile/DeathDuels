@@ -1,8 +1,10 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Configs = require(ReplicatedStorage.Round.Configs)
 local NetworkRouter = require(ReplicatedStorage.NetworkRouter)
 local ClientEventBus = require(script.Parent.ClientEventBus)
 local GameStateUIBinder = require(script.GameStateUIBinder)
+local MapLoader = require(script.MapLoader)
 
 local RoundController = {}
 local initialized = false
@@ -13,6 +15,14 @@ local function publishSnapshot(snapshot: any)
 	if type(snapshot) ~= "table" or type(snapshot.state) ~= "string" then
 		return
 	end
+
+	-- While the server is positioning us for the round, make sure the area
+	-- around our spawn is fully streamed in before we report readiness. The
+	-- server gates RoundActive on this. ensureReady only acts once per client.
+	if snapshot.state == Configs.GAME_STATES.PreparingPlayers and type(snapshot.mapName) == "string" then
+		MapLoader.ensureReady(snapshot.mapName)
+	end
+
 	if snapshot.state == lastRoundState then
 		return
 	end

@@ -137,6 +137,7 @@ function RoundSystem.new(metadata: TeleportMetadata)
 	self._lastQuestRecordedRound = 0
 	self._broadcastRemote = NetworkRouter:CreateRemoteEvent("RoundUpdate")
 	self._snapshotRemote = NetworkRouter:CreateRemoteFunction("RoundGetSnapshot")
+	self._mapReadyRemote = NetworkRouter:CreateRemoteEvent(Configs.MAP_READY_REMOTE)
 	self._waitTask = nil
 	self._roundTimerTask = nil
 	self._mapModel = nil
@@ -149,6 +150,13 @@ function RoundSystem.new(metadata: TeleportMetadata)
 			return nil
 		end
 		return self:GetSnapshot()
+	end)
+
+	self._mapReadyConn = NetworkRouter:Listen(Configs.MAP_READY_REMOTE, function(player: Player, mapName: any)
+		if self._destroyed then
+			return
+		end
+		self:_onClientMapReady(player, mapName)
 	end)
 
 	self._stateMachine:SetTransitionCallback(function(from: string, to: string)
@@ -444,6 +452,27 @@ function RoundSystem:RegisterReconnect(player: Player, ticket: any): (boolean, s
 	return true, nil
 end
 
+-- A client reports that the area around its combat spawn has streamed in and
+-- preloaded. We record the readiness fact so the player can be released into
+-- RoundActive (see RoundOrchestrator.enterPreparingPlayers).
+function RoundSystem:_onClientMapReady(player: Player, mapName: any)
+	-- Only bank readiness during PreparingPlayers — the window in which the
+	-- client has actually been positioned and anchored at its combat spawn.
+	-- This stops an early or spoofed fire (e.g. during AssigningTeams) from
+	-- satisfying the gate before the spawn region has streamed in.
+	if self._stateMachine:GetState() ~= Configs.GAME_STATES.PreparingPlayers then
+		return
+	end
+	local expectedMap = self._metadata and self._metadata.mapName
+	if expectedMap and mapName ~= expectedMap then
+		return
+	end
+	if not self._playerStates[player] then
+		return
+	end
+	PlayerReadiness.recordFact(player, "MapReady")
+end
+
 function RoundSystem:GetSnapshot()
 	local serializedPlayers = {}
 	for _, playerState in self._playerStates do
@@ -459,6 +488,7 @@ function RoundSystem:GetSnapshot()
 		roundResults = self._roundResults,
 		playerStates = serializedPlayers,
 		teamStates = teamSnapshots,
+		mapName = self._metadata and self._metadata.mapName,
 	}
 end
 
@@ -502,6 +532,10 @@ function RoundSystem:Destroy()
 	if self._snapshotRemote then
 		self._snapshotRemote.OnServerInvoke = nil
 		self._snapshotRemote = nil
+	end
+	if self._mapReadyConn then
+		self._mapReadyConn:Disconnect()
+		self._mapReadyConn = nil
 	end
 end
 

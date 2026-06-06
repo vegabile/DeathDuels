@@ -35,11 +35,18 @@ return {
 	POSITIONING_OUTER_TIMEOUT = 6,
 	DEFAULT_WALK_SPEED = 16,
 
+	-- Client -> server signal that the area around a player's combat spawn has
+	-- streamed in (StreamingEnabled) and its assets are preloaded. Gates entry
+	-- into RoundActive so nobody is unfrozen into a half-loaded map.
+	MAP_READY_REMOTE = "RoundMapReady",
+	MAP_LOAD_TIMEOUT = 15, -- client: hard cap (s) for stream-around + preload before reporting ready best-effort
+
 	REQUIRED_FACTS = {
 		"ProfileLoaded",
 		"LoadoutResolved",
 		"CharacterLoaded",
 		"CharacterUsable",
+		"MapReady",
 	},
 
 
