@@ -146,6 +146,49 @@ local function pickInitialSpawnCFrame(): CFrame
 	return CFrame.new(0, 100, 0)
 end
 
+-- Studs above a spawn pad's top surface to drop the HumanoidRootPart, and the
+-- lateral spacing used when several players have to share a single spawn pad.
+local SPAWN_VERTICAL_CLEARANCE = 3
+local SPAWN_LATERAL_SPACING = 5
+
+-- Where to place a player's root for a given spawn pad. `occupantIndex` is how
+-- many players already assigned to this same pad (0 = first), so when there are
+-- more players than spawn parts they get spread along the pad instead of stacked
+-- on the identical CFrame — overlapping roots get violently separated (flung) the
+-- moment they unanchor. Clearance is measured from the pad's top surface so the
+-- root is never embedded inside a tall pad (also a fling source on unanchor).
+local function computeSpawnCFrame(spawnPart: BasePart, occupantIndex: number): CFrame
+	local lateral = 0
+	if occupantIndex > 0 then
+		local step = math.floor((occupantIndex + 1) / 2)
+		local sign = if occupantIndex % 2 == 1 then 1 else -1
+		lateral = sign * step * SPAWN_LATERAL_SPACING
+	end
+	local clearance = spawnPart.Size.Y / 2 + SPAWN_VERTICAL_CLEARANCE
+	return spawnPart.CFrame * CFrame.new(lateral, clearance, 0)
+end
+
+-- Unfreeze a positioned character at round start. Anchored characters retain
+-- AssemblyLinearVelocity, and the physics solver can inject velocity on the frame
+-- they unanchor; both manifest as a random fling. We zero velocity before and
+-- after unanchoring and hand network ownership back to the client so physics
+-- resumes cleanly under the owner rather than via a corrective resync.
+local function releaseCharacter(player: Player, hrp: BasePart, humanoid: Humanoid)
+	hrp.AssemblyLinearVelocity = Vector3.zero
+	hrp.AssemblyAngularVelocity = Vector3.zero
+	hrp.Anchored = false
+	humanoid.WalkSpeed = Configs.DEFAULT_WALK_SPEED
+	pcall(function()
+		hrp:SetNetworkOwner(player)
+	end)
+	task.defer(function()
+		if hrp.Parent and not hrp.Anchored then
+			hrp.AssemblyLinearVelocity = Vector3.zero
+			hrp.AssemblyAngularVelocity = Vector3.zero
+		end
+	end)
+end
+
 
 
 
@@ -188,7 +231,7 @@ end
 
 
 
-local function exitSkippedOrPosition(system, player: Player, playerState, spawnPart: BasePart, loadout): boolean
+local function exitSkippedOrPosition(system, player: Player, playerState, spawnPart: BasePart, occupantIndex: number, loadout): boolean
 	if playerState.positionedThisRound then return true end
 	local character = (player :: any).Character
 	if not character then
@@ -205,11 +248,13 @@ local function exitSkippedOrPosition(system, player: Player, playerState, spawnP
 		return false
 	end
 
-	hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
-	hrp.Anchored = true
 	if character.PrimaryPart == nil then
 		character.PrimaryPart = hrp
 	end
+	hrp.AssemblyLinearVelocity = Vector3.zero
+	hrp.AssemblyAngularVelocity = Vector3.zero
+	character:PivotTo(computeSpawnCFrame(spawnPart, occupantIndex))
+	hrp.Anchored = true
 	humanoid.WalkSpeed = 0
 
 	for _, child in character:GetChildren() do
@@ -325,6 +370,7 @@ local function enterPreparingPlayers(system)
 			setPowerRoundEligible(player, false)
 
 			local spawnPart = spawns[((i - 1) % #spawns) + 1]
+			local occupantIndex = math.floor((i - 1) / #spawns)
 			local loadout = if GlobalConfigs.TEST_MODE then Configs.DEFAULT_LOADOUT else TeleportMetadataService.GetLoadout(player.UserId)
 			remaining += 1
 
@@ -340,7 +386,7 @@ local function enterPreparingPlayers(system)
 					then
 						return false
 					end
-					return exitSkippedOrPosition(system, player, playerState, spawnPart, loadout)
+					return exitSkippedOrPosition(system, player, playerState, spawnPart, occupantIndex, loadout)
 				end)
 				if not ok then
 					warn(`[Round] PreparingPlayers positioning errored for {player.Name}: {positioned}`)
@@ -468,8 +514,7 @@ local function enterRoundActive(system)
 			setPowerRoundEligible(player, false)
 			continue
 		end
-		hrp.Anchored = false
-		humanoid.WalkSpeed = Configs.DEFAULT_WALK_SPEED
+		releaseCharacter(player, hrp, humanoid)
 		state.status = Configs.PLAYER_STATUSES.Alive
 		state:SetInGame(true)
 		player:SetAttribute(Configs.QUEST_ROUND_PARTICIPATED_ATTRIBUTE, true)
