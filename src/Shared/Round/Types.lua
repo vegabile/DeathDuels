@@ -65,6 +65,7 @@ export type PlayerDelta = {
 	actionId: string?,
 	kills: number?,
 	matchesPlayed: number?,
+	matchWon: boolean?,
 	quest: { [string]: number }?,
 }
 

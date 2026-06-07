@@ -24,6 +24,13 @@ return {
 	QUEST_USED_KNIFE_ATTRIBUTE = "QuestUsedKnifeThisRound",
 	QUEST_USED_POWER_ATTRIBUTE = "QuestUsedPowerThisRound",
 
+	-- Quest requirement key the lobby increments for an overall MATCH win
+	-- (drives the "Triple Threat" = win 3 matches quest). Emitted in the return
+	-- payload's quest delta for every player on the winning team.
+	-- ASSUMPTION: must equal the lobby's match-win quest requirement id.
+	-- If the lobby uses a different name (e.g. "Wins"), change ONLY this string.
+	MATCH_WIN_QUEST_KEY = "MatchWins",
+
 	WAITING_PERIOD = 20,
 	ROUND_DURATION = 60,
 	ROUND_INTERMISSION_DURATION = 5,
