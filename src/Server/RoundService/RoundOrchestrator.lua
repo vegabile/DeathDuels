@@ -553,7 +553,11 @@ local function enterTeleportingOut(system)
 			table.insert(players, player)
 		end
 	end
-	local _, overallWinner = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
+	local matchIsOver, overallWinner = WinConditionEvaluator.isGameOver(system._roundResults, system._roundNumber)
+	if not matchIsOver then
+		local decidingResult = system._roundResults[#system._roundResults]
+		overallWinner = decidingResult and decidingResult.winningTeam or nil
+	end
 	local payload = TeleportUtility.buildReturnPayload(system._playerStates, system._roundResults, overallWinner, system._disconnectedStats, system:GetMatchId(), system._matchStartedAt, system._roundRoster)
 	local ok, err = TeleportUtility.teleportPlayersWithRetry(players, Configs.LOBBY_PLACE_ID, payload)
 	if not ok then

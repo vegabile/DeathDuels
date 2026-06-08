@@ -60,11 +60,14 @@ local function hasFriendInRoster(player: Player, rosterPlayers: { Player }?): bo
 	return false
 end
 
-local function buildQuestDelta(sourceQuest, player: Player?, playSeconds: number, rosterPlayers: { Player }?)
+local function buildQuestDelta(sourceQuest, player: Player?, playSeconds: number, rosterPlayers: { Player }?, wonMatch: boolean?)
 	local quest = copyQuestDelta(sourceQuest)
 	addQuestDelta(quest, "PlaySeconds", playSeconds)
 	if player and hasFriendInRoster(player, rosterPlayers) then
 		addQuestDelta(quest, "FriendPlaySeconds", playSeconds)
+	end
+	if wonMatch then
+		addQuestDelta(quest, Configs.MATCH_WIN_QUEST_KEY, 1)
 	end
 	if next(quest) == nil then
 		return nil
@@ -100,14 +103,16 @@ function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, rou
 	for player, state in playerStates do
 		local rawKills = if type(state.GetMatchStat) == "function" then state:GetMatchStat("kills") else state:GetStat("kills")
 		local kills = sanitizeKills(rawKills)
+		local won = winningTeam ~= nil and state.team == winningTeam
 		local entry = {
 			coinsEarned   = kills * Configs.COINS_PER_KILL,
 			xpEarned      = kills * Configs.XP_PER_KILL,
 			actionId      = matchId and `match:{matchId}:player:{player.UserId}` or nil,
 			kills         = kills,
 			matchesPlayed = 1,
+			matchWon      = won,
 		}
-		entry.quest = buildQuestDelta(state.quest, player, playSeconds, rosterPlayers)
+		entry.quest = buildQuestDelta(state.quest, player, playSeconds, rosterPlayers, won)
 		delta[tostring(player.UserId)] = entry
 	end
 
@@ -115,14 +120,16 @@ function TeleportUtility.buildReturnPayload(playerStates: { [Player]: any }, rou
 		for odUserId, data in disconnectedStats do
 			local stats = data.matchStats or data.stats
 			local kills = sanitizeKills(stats and stats.kills or 0)
+			local won = winningTeam ~= nil and data.team == winningTeam
 			local entry = {
 				coinsEarned   = kills * Configs.COINS_PER_KILL,
 				xpEarned      = kills * Configs.XP_PER_KILL,
 				actionId      = matchId and `match:{matchId}:player:{odUserId}` or nil,
 				kills         = kills,
 				matchesPlayed = 1,
+				matchWon      = won,
 			}
-			entry.quest = buildQuestDelta(data.quest, nil, playSeconds, rosterPlayers)
+			entry.quest = buildQuestDelta(data.quest, nil, playSeconds, rosterPlayers, won)
 			delta[odUserId] = entry
 		end
 	end
