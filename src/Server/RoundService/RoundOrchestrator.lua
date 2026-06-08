@@ -13,6 +13,7 @@ local WinConditionEvaluator = require(script.Parent.WinConditionEvaluator)
 local TeleportMetadataService = require(script.Parent.TeleportMetadataService)
 local TeleportUtility = require(script.Parent.TeleportUtility)
 local PlayerReadiness = require(script.Parent.PlayerReadiness)
+local SpawnUtility = require(script.Parent.SpawnUtility)
 
 local RoundOrchestrator = {}
 
@@ -147,9 +148,6 @@ local function pickInitialSpawnCFrame(): CFrame
 end
 
 
-
-
-
 local function applySkipped(system, player: Player, playerState)
 	if playerState.status == Configs.PLAYER_STATUSES.Skipped then
 		setPowerRoundEligible(player, false)
@@ -188,7 +186,7 @@ end
 
 
 
-local function exitSkippedOrPosition(system, player: Player, playerState, spawnPart: BasePart, loadout): boolean
+local function exitSkippedOrPosition(system, player: Player, playerState, spawnPart: BasePart, occupantIndex: number, loadout): boolean
 	if playerState.positionedThisRound then return true end
 	local character = (player :: any).Character
 	if not character then
@@ -205,11 +203,15 @@ local function exitSkippedOrPosition(system, player: Player, playerState, spawnP
 		return false
 	end
 
-	hrp.CFrame = spawnPart.CFrame + Vector3.new(0, 3, 0)
-	hrp.Anchored = true
 	if character.PrimaryPart == nil then
 		character.PrimaryPart = hrp
 	end
+	hrp.AssemblyLinearVelocity = Vector3.zero
+	hrp.AssemblyAngularVelocity = Vector3.zero
+	character:PivotTo(SpawnUtility.computeSpawnCFrame(spawnPart, occupantIndex))
+	hrp.Anchored = true
+	local currentWalkSpeed = humanoid.WalkSpeed
+	playerState.frozenWalkSpeed = if currentWalkSpeed > 0 then currentWalkSpeed else Configs.DEFAULT_WALK_SPEED
 	humanoid.WalkSpeed = 0
 
 	for _, child in character:GetChildren() do
@@ -325,6 +327,7 @@ local function enterPreparingPlayers(system)
 			setPowerRoundEligible(player, false)
 
 			local spawnPart = spawns[((i - 1) % #spawns) + 1]
+			local occupantIndex = math.floor((i - 1) / #spawns)
 			local loadout = if GlobalConfigs.TEST_MODE then Configs.DEFAULT_LOADOUT else TeleportMetadataService.GetLoadout(player.UserId)
 			remaining += 1
 
@@ -340,7 +343,7 @@ local function enterPreparingPlayers(system)
 					then
 						return false
 					end
-					return exitSkippedOrPosition(system, player, playerState, spawnPart, loadout)
+					return exitSkippedOrPosition(system, player, playerState, spawnPart, occupantIndex, loadout)
 				end)
 				if not ok then
 					warn(`[Round] PreparingPlayers positioning errored for {player.Name}: {positioned}`)
@@ -468,8 +471,7 @@ local function enterRoundActive(system)
 			setPowerRoundEligible(player, false)
 			continue
 		end
-		hrp.Anchored = false
-		humanoid.WalkSpeed = Configs.DEFAULT_WALK_SPEED
+		SpawnUtility.releaseCharacter(player, hrp, humanoid, state.frozenWalkSpeed or Configs.DEFAULT_WALK_SPEED)
 		state.status = Configs.PLAYER_STATUSES.Alive
 		state:SetInGame(true)
 		player:SetAttribute(Configs.QUEST_ROUND_PARTICIPATED_ATTRIBUTE, true)

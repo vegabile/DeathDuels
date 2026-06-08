@@ -23,6 +23,7 @@ function PlayerState.new(player: Player, teamNumber: number)
 		quest = {},
 		questWinStreak = 0,
 		positionedThisRound = false,
+		frozenWalkSpeed = Configs.DEFAULT_WALK_SPEED,
 		_locked = false,
 	}, PlayerState)
 end
@@ -97,6 +98,7 @@ function PlayerState:Reset()
 	self.status = Configs.PLAYER_STATUSES.Positioning
 	self.isInGame = false
 	self.positionedThisRound = false
+	self.frozenWalkSpeed = Configs.DEFAULT_WALK_SPEED
 	self._locked = false
 end
 

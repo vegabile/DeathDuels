@@ -16,9 +16,6 @@ local function publishSnapshot(snapshot: any)
 		return
 	end
 
-	-- While the server is positioning us for the round, make sure the area
-	-- around our spawn is fully streamed in before we report readiness. The
-	-- server gates RoundActive on this. ensureReady only acts once per client.
 	if snapshot.state == Configs.GAME_STATES.PreparingPlayers and type(snapshot.mapName) == "string" then
 		MapLoader.ensureReady(snapshot.mapName)
 	end
