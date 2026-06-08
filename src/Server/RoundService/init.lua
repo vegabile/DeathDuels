@@ -452,14 +452,7 @@ function RoundSystem:RegisterReconnect(player: Player, ticket: any): (boolean, s
 	return true, nil
 end
 
--- A client reports that the area around its combat spawn has streamed in and
--- preloaded. We record the readiness fact so the player can be released into
--- RoundActive (see RoundOrchestrator.enterPreparingPlayers).
 function RoundSystem:_onClientMapReady(player: Player, mapName: any)
-	-- Only bank readiness during PreparingPlayers — the window in which the
-	-- client has actually been positioned and anchored at its combat spawn.
-	-- This stops an early or spoofed fire (e.g. during AssigningTeams) from
-	-- satisfying the gate before the spawn region has streamed in.
 	if self._stateMachine:GetState() ~= Configs.GAME_STATES.PreparingPlayers then
 		return
 	end
