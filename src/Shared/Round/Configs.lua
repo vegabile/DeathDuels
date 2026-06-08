@@ -24,11 +24,6 @@ return {
 	QUEST_USED_KNIFE_ATTRIBUTE = "QuestUsedKnifeThisRound",
 	QUEST_USED_POWER_ATTRIBUTE = "QuestUsedPowerThisRound",
 
-	-- Quest requirement key the lobby increments for an overall MATCH win
-	-- (drives the "Triple Threat" = win 3 matches quest). Emitted in the return
-	-- payload's quest delta for every player on the winning team.
-	-- ASSUMPTION: must equal the lobby's match-win quest requirement id.
-	-- If the lobby uses a different name (e.g. "Wins"), change ONLY this string.
 	MATCH_WIN_QUEST_KEY = "MatchWins",
 
 	WAITING_PERIOD = 20,
@@ -42,11 +37,8 @@ return {
 	POSITIONING_OUTER_TIMEOUT = 6,
 	DEFAULT_WALK_SPEED = 16,
 
-	-- Client -> server signal that the area around a player's combat spawn has
-	-- streamed in (StreamingEnabled) and its assets are preloaded. Gates entry
-	-- into RoundActive so nobody is unfrozen into a half-loaded map.
 	MAP_READY_REMOTE = "RoundMapReady",
-	MAP_LOAD_TIMEOUT = 15, -- client: hard cap (s) for stream-around + preload before reporting ready best-effort
+	MAP_LOAD_TIMEOUT = 15,
 
 	REQUIRED_FACTS = {
 		"ProfileLoaded",
@@ -70,8 +62,7 @@ return {
 	},
 
 	LOBBY_PLACE_ID = 92562692732027,
-	--test!
-	
+
 	DEBUG_RETURN_TELEPORT_DATA = false,
 	RETRY_COUNT = 3,
 	EXPONENTIAL_BACKOFF_BASE = 1,
